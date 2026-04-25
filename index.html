@@ -2452,36 +2452,110 @@ async function _handleApi(ep, opts) {
   }
   if (ep==='/api/measure-sqft') {
     var files=gfs('files'), scope=gf('scope_notes');
-    var content = await buildDocContent(files, 'Find the total finished square footage in these construction plans/documents. Look for: area schedules, room labels with dimensions, title block SF, or calculate from floor plan dimensions. Return JSON only: {"sqft":<number or 0>,"source":"where you found it","confidence":"high|medium|low","notes":"brief explanation"}. Scope hint: '+scope);
-    return _oai([{role:'user', content: content}], 200);
+    var content = await buildDocContent(files,
+      'You are a construction estimator reading architectural or contractor plans.\n' +
+      'TASK: Find or calculate the TOTAL finished square footage for this project.\n' +
+      'Look for ALL of the following in order of priority:\n' +
+      '  1. An explicit area schedule or room schedule table with SF totals\n' +
+      '  2. Title block or drawing notes that state total area\n' +
+      '  3. Room labels with dimensions (e.g. "12x14 BR") — multiply and sum all rooms\n' +
+      '  4. Floor plan grid — count room areas from visible dimensions\n' +
+      'Scope hint from contractor: ' + scope + '\n' +
+      'Return ONLY this JSON (no markdown, no explanation):\n' +
+      '{"sqft":<integer, 0 if truly unknown>,"source":"exact quote or method used","confidence":"high|medium|low","rooms":[{"name":"room name","sqft":nn}],"notes":"any caveats"}'
+    );
+    return _oai([{role:'user', content: content}], 400);
   }
   if (ep==='/api/takeoff') {
     var files=gfs('files'), scope=gf('scope'), pt=gf('project_type'), sq=gf('sqft'), tier=gf('tier'), st=gf('state');
-    var tierRates = {budget:'$225-250/sqft all-in',mid:'$285-320/sqft all-in',premium:'$350-425/sqft all-in'};
-    var tierRate = tierRates[tier] || tierRates.mid;
-    var targetTotal = Math.round(parseInt(sq||100) * (tier==='budget'?237:tier==='premium'?385:300));
-    var userPrompt = 'Generate a detailed line-item takeoff for: '+pt+', '+sq+' sq ft, '+tier+' finish tier, '+st+'. Scope: '+scope+'.'+'\nReturn JSON with these exact fields: {materials:[{item,qty,unit,unitPrice,total}],labor:[{trade,hours,rate,total}],totals:{materials,labor,subtotal,tax,grand},summary:string}. Include 8-12 material line items and 5-7 labor trades. All dollar amounts in full dollars (not thousands). Grand total must be near $'+targetTotal.toLocaleString()+' for a '+tier+'-tier job of this size in '+st+'.';
+    var sqNum = parseInt(sq) || 0;
+
+    // ── Tier rate anchors (Northeast 2025/2026) ──
+    var tierData = {
+      budget:  { allIn: 237, matPct: 0.40, labPct: 0.35, desc: 'stock cabinets, builder fixtures, LVP floors' },
+      mid:     { allIn: 300, matPct: 0.42, labPct: 0.34, desc: 'semi-custom cabinets, quartz counters, tile' },
+      premium: { allIn: 385, matPct: 0.44, labPct: 0.33, desc: 'custom millwork, stone, high-end fixtures throughout' }
+    };
+    var td = tierData[tier] || tierData.mid;
+    var targetGrand = Math.round(sqNum * td.allIn);
+    var targetMat   = Math.round(targetGrand * td.matPct);
+    var targetLab   = Math.round(targetGrand * td.labPct);
+
+    // ── Per-trade labor hour math (based on confirmed sqft) ──
+    var laborGuide = [
+      'Demo/rough: ' + Math.round(sqNum * 0.4) + ' hrs @ $75/hr',
+      'Framing/carpentry: ' + Math.round(sqNum * 0.5) + ' hrs @ $95/hr',
+      'Plumbing rough+finish: ' + Math.round(sqNum * 0.25) + ' hrs @ $125/hr',
+      'Electrical rough+finish: ' + Math.round(sqNum * 0.25) + ' hrs @ $120/hr',
+      'Tile work: ' + Math.round(sqNum * 0.35) + ' hrs @ $105/hr',
+      'Drywall hang+finish: ' + Math.round(sqNum * 0.3) + ' hrs @ $80/hr',
+      'Paint: ' + Math.round(sqNum * 0.2) + ' hrs @ $80/hr',
+      'Trim+finish carpentry: ' + Math.round(sqNum * 0.15) + ' hrs @ $90/hr'
+    ].join(' | ');
+
+    // ── Material quantity anchors from sqft ──
+    var matGuide = [
+      'Floor tile/LVP: ' + Math.round(sqNum * 1.10) + ' SF (10% waste)',
+      'Wall tile: ' + Math.round(sqNum * 1.5) + ' SF estimate (walls ~1.5x floor area)',
+      'Drywall: ' + Math.round(sqNum * 2.2) + ' SF total wall+ceiling area',
+      'Paint: ' + Math.round(sqNum * 2.0) + ' SF paintable surface',
+      'Insulation: ' + Math.round(sqNum * 1.1) + ' SF',
+      'Cabinets: estimate LF from scope',
+      'Countertop: estimate LF from scope'
+    ].join(' | ');
+
+    var sysPrompt = [
+      'You are a senior licensed GC estimator for the Northeast US with 20 years experience.',
+      'CONFIRMED PROJECT: ' + pt + ', ' + sqNum + ' SF CONFIRMED from plans, ' + tier + ' tier, ' + st + '.',
+      'MANDATORY FINANCIAL TARGETS — your output MUST hit these:',
+      '  Total materials: ~$' + targetMat.toLocaleString(),
+      '  Total labor: ~$' + targetLab.toLocaleString(),
+      '  Grand total (before OH&P): ~$' + targetGrand.toLocaleString(),
+      'LABOR HOUR GUIDE (use these as your starting quantities):',
+      '  ' + laborGuide,
+      'MATERIAL QUANTITY GUIDE (calculated from ' + sqNum + ' SF):',
+      '  ' + matGuide,
+      'NORTHEAST 2026 RATE ANCHORS — do NOT use national average rates:',
+      '  Framing lumber: $0.85-1.20/BF | Drywall installed: $4.50-6.50/SF | LVP: $8-14/SF installed | Hardwood: $16-24/SF installed',
+      '  Wall tile installed: $18-28/SF | Floor tile installed: $20-32/SF | Quartz countertop: $80-140/SF installed',
+      '  Cabinet base: $350-600/LF mid, $600-1200/LF premium | Paint: $3.50-5/SF | Insulation: $2-4/SF',
+      '  Toilet supply+install: $500-900 | Vanity+faucet mid: $900-1800 | Vanity+faucet premium: $2200-5000',
+      '  Shower valve+trim: $700-1400 | Recessed light installed: $200-300 ea | HVAC per ton: $3500-5500',
+      'RULES:',
+      '  1. Every qty must be calculated from the ' + sqNum + ' SF — not guessed',
+      '  2. All dollar amounts in full dollars — NOT in thousands',
+      '  3. Grand total of ALL line items must sum to within 10% of $' + targetGrand.toLocaleString(),
+      '  4. Include 10-14 material lines and 6-8 labor trades',
+      '  5. Return ONLY valid JSON — no markdown, no text outside the JSON object',
+      'Scope notes: ' + (scope || 'standard ' + tier + ' ' + pt)
+    ].join('\n');
+
+    var userPromptText =
+      'Generate a precise line-item takeoff.\n' +
+      'Project: ' + pt + ' | ' + sqNum + ' SF confirmed | ' + tier + ' tier | ' + st + '\n' +
+      'Scope: ' + (scope || 'standard ' + tier + ' finish ' + pt) + '\n\n' +
+      'Return this EXACT JSON structure:\n' +
+      '{\n' +
+      '  "sqft_confirmed": ' + sqNum + ',\n' +
+      '  "materials": [{"item":"<name>","qty":<number>,"unit":"<SF|LF|EA|lot>","unitPrice":<dollars>,"total":<dollars>}],\n' +
+      '  "labor": [{"trade":"<trade>","hours":<number>,"rate":<$/hr>,"total":<dollars>}],\n' +
+      '  "totals": {"materials":<sum>,"labor":<sum>,"subtotal":<mat+lab>,"tax":<mat*0.07>,"grand":<subtotal+tax>},\n' +
+      '  "summary": "<2 sentence description of scope and key quantities>"\n' +
+      '}\n' +
+      'Grand total must be near $' + targetGrand.toLocaleString() + '. Every number must be a plain integer or decimal — no $ signs, no commas inside the JSON values.';
+
     var userContent;
     if (files && files.length > 0) {
-      userContent = await buildDocContent(files, userPrompt);
+      userContent = await buildDocContent(files, userPromptText);
     } else {
-      userContent = userPrompt;
+      userContent = userPromptText;
     }
     return _oai([
-      {role:'system',content:[
-        'You are a senior licensed general contractor estimator for the Northeast US (NY/NJ/CT/MA) with 20 years experience.',
-        'You produce ACCURATE 2025 market-rate estimates. CRITICAL RATE ANCHORS you must follow:',
-        'LABOR: Carpenter/framer $85-110/hr | Plumber $110-140/hr | Electrician $110-135/hr | Tile setter $90-120/hr | Painter $70-90/hr | General laborer $65-80/hr | HVAC $100-130/hr.',
-        'MATERIALS: Wall tile installed $18-28/SF | Floor tile installed $20-32/SF | LVP flooring $8-14/SF | Hardwood $16-24/SF | Drywall hang+finish $4-6/SF | Cabinet linear foot $350-600/LF (mid) $600-1200/LF (premium) | Quartz countertop $80-140/SF installed | Paint walls $3-5/SF | Insulation $2-4/SF.',
-        'FIXTURES: Standard toilet $400-700 supply+install | Vanity+faucet mid $800-1500 | Vanity+faucet premium $2000-4500 | Shower valve+trim $600-1200 | Recessed light $180-280 each installed.',
-        'A ' + tier + '-tier ' + pt + ' in ' + st + ' at ' + sq + ' sqft should total approximately ' + tierRate + ', so target grand total near $' + targetTotal.toLocaleString() + '.',
-        'Do NOT underestimate. Northeast labor and material costs are among the highest in the US.',
-        'Return valid JSON only. No markdown, no explanation outside JSON.'
-      ].join(' ')},
-      {role:'user', content: userContent}
-    ], 2000);
+      {role:'system', content: sysPrompt},
+      {role:'user',   content: userContent}
+    ], 3000);
   }
-    if (ep==='/api/schedule') {
+      if (ep==='/api/schedule') {
     var b={}; try{b=JSON.parse((opts&&opts.body)||'{}');}catch(e){}
     return _oai([{role:'user',content:'Trade-sequenced schedule for '+(b.projectType||'remodel')+', '+(b.sqft||200)+' sq ft, '+(b.state||'NJ')+'. Return JSON: {phases:[{id,name,trade,duration,dependsOn:[],notes}]}. 6-10 phases, demo to punch list sequence. Duration in working days.'}], 700);
   }
@@ -2731,73 +2805,127 @@ function renderTakeoffModal() {
     if (p) defaults = { projectType: p.projectType, sqft: p.sqft, tier: p.tier, state: p.state, scope: p.scopeNotes || '' };
   }
 
-  // Auto-load vault plans if this takeoff is tied to a project
+  // Auto-load vault plans
   const vaultProjectId = (takeoffCtx && takeoffCtx !== 'wizard') ? takeoffCtx : null;
   const vaultFiles = vaultProjectId ? getPlanFilesFromVault(vaultProjectId) : [];
-  if (vaultFiles.length > 0 && takeoffFiles.length === 0) {
-    takeoffFiles = vaultFiles; // pre-seed
-  }
+  if (vaultFiles.length > 0 && takeoffFiles.length === 0) takeoffFiles = vaultFiles;
   const vaultCount = vaultFiles.length;
-  const vaultBanner = vaultCount > 0
-    ? `<div style="display:flex; align-items:center; gap:10px; padding:12px 14px; background:var(--surface-2); border-radius:var(--radius-md); border-left:3px solid var(--orange); margin-bottom:16px; font-size:13px;">
-        <span style="font-size:18px;">📎</span>
-        <div><strong>${vaultCount} plan${vaultCount!==1?'s':''} auto-loaded from vault</strong> <span class="muted">— AI will read these &amp; extract square footage. Add more below or run immediately.</span></div>
+
+  // Determine what step we're on
+  // sqftConfirmed = measured sqft that user has locked in
+  const sqftMeasured = measureState.result && Number(measureState.result.sqft) > 0
+    ? Number(measureState.result.sqft) : null;
+  // Use user-entered sqft as the confirmed value (user is always ground truth)
+  const sqftEntered  = defaults.sqft ? Number(defaults.sqft) : null;
+  const sqftReady    = sqftEntered || sqftMeasured;
+
+  const filesReady   = takeoffFiles.length > 0;
+
+  // Step indicators
+  const step1Done = sqftReady && sqftReady > 0;
+  const stepStyle = (done, active) =>
+    `display:flex;align-items:center;gap:10px;padding:14px 16px;border-radius:var(--radius-md);margin-bottom:10px;` +
+    `background:${done ? 'var(--green-soft,#f0fdf4)' : active ? 'var(--surface-2)' : 'var(--surface-1)'};` +
+    `border:1px solid ${done ? 'var(--green)' : active ? 'var(--orange)' : 'var(--border)'}`;
+  const dot = (done, n) =>
+    `<div style="width:28px;height:28px;border-radius:50%;display:flex;align-items:center;justify-content:center;font-weight:700;font-size:13px;flex-shrink:0;` +
+    `background:${done ? 'var(--green)' : 'var(--orange)'};color:#fff;">${done ? '✓' : n}</div>`;
+
+  const vaultBadge = vaultCount > 0
+    ? `<div style="display:inline-flex;align-items:center;gap:6px;padding:4px 10px;background:var(--orange-soft);border-radius:999px;font-size:12px;font-weight:600;color:var(--orange-dark);margin-bottom:12px;">
+        📎 ${vaultCount} plan${vaultCount!==1?'s':''} loaded from vault
        </div>`
     : '';
 
+  const measuredBadge = sqftMeasured
+    ? `<span style="font-size:11px;padding:2px 8px;border-radius:999px;background:var(--green);color:#fff;font-weight:600;margin-left:8px;">
+        AI measured: ${sqftMeasured.toLocaleString()} SF
+       </span>`
+    : '';
+
   state.modal = {
-    title: 'AI Takeoff',
+    title: 'AI Takeoff — 2-Step Precision Estimate',
     body: `
-      ${vaultBanner}
-      <p class="muted" style="font-size: 13px; margin-bottom: 16px;">Upload plan drawings, PDFs, or spec documents. AI will read them and return a real material + labor list based on what it sees.</p>
+      ${vaultBadge}
 
-      <div class="field">
-        <label>Project type</label>
-        <select class="select" id="to-type">${PROJECT_TYPES.map(t => `<option ${defaults.projectType===t?'selected':''}>${t}</option>`).join('')}</select>
-      </div>
-
-      <div class="field-grid">
-        <div class="field">
-          <label>Sq ft (hint)</label>
-          <input class="input mono" type="number" id="to-sqft" value="${defaults.sqft}" />
-        </div>
-        <div class="field">
-          <label>Tier</label>
-          <select class="select" id="to-tier">
-            ${Object.values(TIERS).map(t => `<option value="${t.key}" ${defaults.tier===t.key?'selected':''}>${t.name}</option>`).join('')}
-          </select>
+      <!-- STEP 1: Confirm Square Footage -->
+      <div style="${stepStyle(!step1Done, true)}">
+        ${dot(!step1Done, '1')}
+        <div style="flex:1;">
+          <div style="font-weight:700;font-size:14px;">Step 1: Confirm Square Footage ${measuredBadge}</div>
+          <div class="muted" style="font-size:12px;margin-top:2px;">This drives every quantity. Must be accurate.</div>
         </div>
       </div>
 
-      <div class="field">
-        <label>State</label>
-        <div class="chip-group">
-          ${STATES.map(s => `<button class="chip ${defaults.state===s.code?'active':''}" data-to-state="${s.code}" type="button">${s.name}</button>`).join('')}
+      <div style="padding:0 4px 16px;">
+        <div class="field-grid" style="margin-bottom:10px;">
+          <div class="field">
+            <label>Confirmed Sq Ft <span style="color:var(--red);font-weight:700;">*</span></label>
+            <input class="input mono" type="number" id="to-sqft" value="${defaults.sqft || ''}"
+              placeholder="Enter or measure from plans" style="font-size:18px;font-weight:700;" />
+            <div class="hint" style="margin-top:4px;">Enter manually OR click Measure from Plans below</div>
+          </div>
+          <div class="field">
+            <label>Project Type</label>
+            <select class="select" id="to-type">${PROJECT_TYPES.map(t => `<option ${defaults.projectType===t?'selected':''}>${t}</option>`).join('')}</select>
+          </div>
         </div>
-        <input type="hidden" id="to-state" value="${defaults.state}" />
+
+        <div class="field-grid" style="margin-bottom:10px;">
+          <div class="field">
+            <label>Finish Tier</label>
+            <select class="select" id="to-tier">
+              ${Object.values(TIERS).map(t => `<option value="${t.key}" ${defaults.tier===t.key?'selected':''}>${t.name} — ${t.desc}</option>`).join('')}
+            </select>
+          </div>
+          <div class="field">
+            <label>State</label>
+            <select class="select" id="to-state-sel">
+              ${STATES.map(s => `<option value="${s.code}" ${defaults.state===s.code?'selected':''}>${s.name}</option>`).join('')}
+            </select>
+            <input type="hidden" id="to-state" value="${defaults.state}" />
+          </div>
+        </div>
+
+        <div class="field" style="margin-bottom:10px;">
+          <label>Scope Notes <span class="muted">(describe what you're building)</span></label>
+          <textarea class="textarea" id="to-scope" rows="3"
+            placeholder="e.g. Full gut kitchen, remove load-bearing wall, 14x16 ft, quartz counters, custom cabinets, 36in range...">${defaults.scope}</textarea>
+        </div>
+
+        <div class="field" style="margin-bottom:6px;">
+          <label>Plans, PDFs, or Photos <span class="muted">(JPG, PNG, PDF — up to 8 files)</span></label>
+          <input type="file" id="to-files" accept="image/*,application/pdf" multiple style="margin-top:4px;" />
+          <div id="to-files-list" style="margin-top:6px;font-size:12px;color:var(--text-muted);"></div>
+        </div>
+
+        <button class="btn btn-secondary" id="to-measure" style="width:100%;justify-content:center;" ${!filesReady?'disabled title="Upload plans first"':''}>
+          📐 Measure Square Footage from Plans
+        </button>
+        <div id="to-measure-host" style="margin-top:10px;">${(measureState.running || measureState.error || measureState.result) ? renderMeasureResult(measureState.result, true) : ''}</div>
       </div>
 
-      <div class="field">
-        <label>Written scope (optional if you upload docs)</label>
-        <textarea class="textarea" id="to-scope" rows="4" placeholder="e.g. Gut kitchen, 14x12, move island 2ft south, new quartz counters, frameless glass partition...">${defaults.scope}</textarea>
+      <!-- STEP 2: Run Takeoff -->
+      <div style="${stepStyle(false, step1Done)}">
+        ${dot(false, '2')}
+        <div style="flex:1;">
+          <div style="font-weight:700;font-size:14px;">Step 2: Generate Precise Line-Item Estimate</div>
+          <div class="muted" style="font-size:12px;margin-top:2px;">
+            ${step1Done
+              ? `Ready — using <strong>${Number(defaults.sqft||sqftMeasured||0).toLocaleString()} SF</strong>. AI will calculate quantities for every trade.`
+              : 'Enter square footage above first.'}
+          </div>
+        </div>
       </div>
 
-      <div class="field">
-        <label>Plans, PDFs, photos, spec docs</label>
-        <div class="hint">Up to 8 files, 40MB each. Supported: JPG, PNG, PDF.</div>
-        <input type="file" id="to-files" accept="image/*,application/pdf" multiple style="margin-top: 6px;" />
-        <div id="to-files-list" style="margin-top: 8px; font-size: 12.5px; color: var(--text-muted);"></div>
-      </div>
-
-      <div id="to-measure-host" style="margin-bottom: 10px;">${(measureState.running || measureState.error || measureState.result) ? renderMeasureResult(measureState.result, true) : ''}</div>
-
-      <div id="to-status" style="display: none; background: var(--orange-soft); border: 1px solid var(--orange); padding: 12px; border-radius: var(--radius-md); font-size: 13px; margin-bottom: 10px;"></div>
-      <div id="to-error" style="display: none; background: var(--red-soft); border: 1px solid var(--red); color: var(--red); padding: 12px; border-radius: var(--radius-md); font-size: 13px; margin-bottom: 10px;"></div>
+      <div id="to-status" style="display:none;background:var(--orange-soft);border:1px solid var(--orange);padding:12px;border-radius:var(--radius-md);font-size:13px;margin-bottom:10px;"></div>
+      <div id="to-error"  style="display:none;background:var(--red-soft);border:1px solid var(--red);color:var(--red);padding:12px;border-radius:var(--radius-md);font-size:13px;margin-bottom:10px;"></div>
     `,
     foot: `
       <button class="btn btn-ghost" data-modal-close>Cancel</button>
-      <button class="btn btn-ghost" id="to-measure">${ico('camera')}Measure SF</button>
-      <button class="btn btn-primary" id="to-run">${ico('camera')}Run AI Takeoff</button>
+      <button class="btn btn-primary" id="to-run" ${!step1Done?'disabled title="Enter square footage first"':''}>
+        ⚡ Run AI Takeoff${step1Done ? ` — ${Number(defaults.sqft||sqftMeasured||0).toLocaleString()} SF` : ''}
+      </button>
     `,
   };
   render();
@@ -2806,76 +2934,157 @@ function renderTakeoffModal() {
 
 function bindTakeoffModal() {
   const fileInput = document.getElementById('to-files');
-  const listEl = document.getElementById('to-files-list');
-  // Show any vault files already pre-seeded into takeoffFiles
+  const listEl    = document.getElementById('to-files-list');
+  const runBtn    = document.getElementById('to-run');
+  const sqftInput = document.getElementById('to-sqft');
+  const stateSel  = document.getElementById('to-state-sel');
+  const stateHid  = document.getElementById('to-state');
+
+  // Show vault files already loaded
   if (listEl && takeoffFiles.length > 0) {
     listEl.innerHTML = takeoffFiles.map(f => `• ${f.name} (${Math.round(f.size/1024)} KB)`).join('<br>');
   }
+
+  // File picker — merge with existing vault files
   if (fileInput) {
     fileInput.onchange = () => {
       const newFiles = Array.from(fileInput.files || []);
-      // Merge with existing (vault) files, deduplicate by name
       const existing = takeoffFiles.filter(f => !newFiles.some(n => n.name === f.name));
       takeoffFiles = [...existing, ...newFiles].slice(0, 8);
-      if (listEl) listEl.innerHTML = takeoffFiles.length === 0 ? '' : takeoffFiles.map(f => `• ${f.name} (${Math.round(f.size/1024)} KB)`).join('<br>');
+      if (listEl) listEl.innerHTML = takeoffFiles.map(f => `• ${f.name} (${Math.round(f.size/1024)} KB)`).join('<br>');
+      // Enable measure button now that files exist
+      const mb = document.getElementById('to-measure');
+      if (mb) { mb.disabled = false; mb.removeAttribute('title'); }
     };
   }
-  const stateInput = document.getElementById('to-state');
-  const stateBtns = document.querySelectorAll('[data-to-state]');
-  stateBtns.forEach(btn => {
-    btn.onclick = (e) => {
-      e.preventDefault();
-      if (stateInput) stateInput.value = btn.dataset.toState;
-      stateBtns.forEach(b => b.classList.remove('active'));
-      btn.classList.add('active');
+
+  // State select → hidden field
+  if (stateSel && stateHid) {
+    stateSel.onchange = () => { stateHid.value = stateSel.value; };
+  }
+
+  // Sqft input → update Run button label live
+  if (sqftInput && runBtn) {
+    sqftInput.oninput = () => {
+      const v = parseInt(sqftInput.value) || 0;
+      if (v > 0) {
+        runBtn.disabled = false;
+        runBtn.textContent = '⚡ Run AI Takeoff — ' + v.toLocaleString() + ' SF';
+      } else {
+        runBtn.disabled = true;
+        runBtn.textContent = '⚡ Run AI Takeoff';
+      }
     };
-  });
-  const runBtn = document.getElementById('to-run');
-  if (runBtn) runBtn.onclick = runTakeoff;
+  }
+
+  // Measure SF button
   const measureBtn = document.getElementById('to-measure');
-  if (measureBtn) measureBtn.onclick = async () => {
-    if (!takeoffFiles || takeoffFiles.length === 0) { showToast('Upload at least one plan first'); return; }
-    const scopeNotes = (document.getElementById('to-scope')?.value || '').trim();
-    measureBtn.disabled = true; measureBtn.textContent = 'Measuring…';
-    await runMeasureSqft(takeoffFiles, scopeNotes);
-    // Re-bind modal since render() rebuilt it
-    setTimeout(bindTakeoffModal, 0);
-  };
-  // Apply-sqft buttons inside the modal result card
+  if (measureBtn) {
+    measureBtn.onclick = async () => {
+      if (!takeoffFiles || takeoffFiles.length === 0) {
+        showToast('Upload at least one plan or photo first');
+        return;
+      }
+      const scopeNotes = (document.getElementById('to-scope')?.value || '').trim();
+      measureBtn.disabled = true;
+      measureBtn.innerHTML = '⏳ Measuring square footage from plans…';
+      await runMeasureSqft(takeoffFiles, scopeNotes);
+      // If we got a result, auto-fill sqft input and update run button
+      if (measureState.result && Number(measureState.result.sqft) > 0) {
+        const measured = Number(measureState.result.sqft);
+        const inp = document.getElementById('to-sqft');
+        if (inp && (!inp.value || Number(inp.value) === 0)) {
+          inp.value = measured;
+        }
+        const rb = document.getElementById('to-run');
+        const currentSqft = parseInt(document.getElementById('to-sqft')?.value) || measured;
+        if (rb && currentSqft > 0) {
+          rb.disabled = false;
+          rb.textContent = '⚡ Run AI Takeoff — ' + currentSqft.toLocaleString() + ' SF';
+        }
+      }
+      setTimeout(bindTakeoffModal, 0);
+    };
+  }
+
+  // Run button
+  if (runBtn) runBtn.onclick = runTakeoff;
+
+  // Apply measured sqft buttons
   document.querySelectorAll('[data-apply-sqft]').forEach(b => b.onclick = () => {
     const v = Number(b.dataset.applySqft);
-    const input = document.getElementById('to-sqft');
-    if (input) { input.value = v; showToast('Square footage set to ' + v.toLocaleString()); }
+    const inp = document.getElementById('to-sqft');
+    if (inp) { inp.value = v; }
+    if (runBtn) { runBtn.disabled = false; runBtn.textContent = '⚡ Run AI Takeoff — ' + v.toLocaleString() + ' SF'; }
+    showToast('Square footage locked: ' + v.toLocaleString() + ' SF');
+  });
+  document.querySelectorAll('[data-apply-override]').forEach(btn => {
+    btn.onclick = () => {
+      const overInput = document.getElementById('measure-override-input');
+      const v = Number(overInput?.value);
+      if (!v || v < 10) { showToast('Enter a valid square footage'); return; }
+      const inp = document.getElementById('to-sqft');
+      if (inp) inp.value = v;
+      const ai = measureState.result?.sqft ? Number(measureState.result.sqft) : null;
+      wizard.sqftSource = (ai && v !== ai) ? `overridden by you (AI said ${ai.toLocaleString()})` : 'measured from plans';
+      if (runBtn) { runBtn.disabled = false; runBtn.textContent = '⚡ Run AI Takeoff — ' + v.toLocaleString() + ' SF'; }
+      showToast('Sqft confirmed: ' + v.toLocaleString() + ' SF');
+    };
+  });
+  document.querySelectorAll('[data-reset-sqft]').forEach(b => b.onclick = () => {
+    const ai = Number(b.dataset.resetSqft);
+    const overInput = document.getElementById('measure-override-input');
+    if (overInput) overInput.value = ai;
+    const inp = document.getElementById('to-sqft');
+    if (inp) inp.value = ai;
+    if (runBtn) { runBtn.disabled = false; runBtn.textContent = '⚡ Run AI Takeoff — ' + ai.toLocaleString() + ' SF'; }
   });
 }
 
 async function runTakeoff() {
   if (takeoffRunning) return;
-  const scope = (document.getElementById('to-scope')?.value || '').trim();
-  const files = takeoffFiles;
+
+  const sqft   = parseInt(document.getElementById('to-sqft')?.value || 0);
+  const scope  = (document.getElementById('to-scope')?.value || '').trim();
+  const files  = takeoffFiles;
+  const errorEl = document.getElementById('to-error');
+  const statusEl = document.getElementById('to-status');
+  const btn = document.getElementById('to-run');
+
+  // Hard gate: sqft must be confirmed
+  if (!sqft || sqft < 10) {
+    errorEl.style.display = 'block';
+    errorEl.textContent = 'Enter the confirmed square footage first (Step 1). This drives every quantity in the estimate.';
+    return;
+  }
   if (!scope && files.length === 0) {
-    document.getElementById('to-error').style.display = 'block';
-    document.getElementById('to-error').textContent = 'Type a scope or upload at least one plan / document.';
+    errorEl.style.display = 'block';
+    errorEl.textContent = 'Add a scope description or upload plan documents.';
     return;
   }
 
   takeoffRunning = true;
-  const btn = document.getElementById('to-run');
-  const statusEl = document.getElementById('to-status');
-  const errorEl = document.getElementById('to-error');
   errorEl.style.display = 'none';
   statusEl.style.display = 'block';
-  statusEl.textContent = files.length > 0
-    ? `Reading ${files.length} file(s) and building takeoff… (can take 20–60 seconds)`
-    : 'Parsing scope and building takeoff…';
+  statusEl.innerHTML = `⏳ Building precise ${sqft.toLocaleString()} SF estimate… calculating trade quantities, materials, and labor rates. This takes 20–60 seconds.`;
   if (btn) { btn.disabled = true; btn.textContent = 'Running…'; btn.style.opacity = '0.7'; }
+
+  // Lock confirmed sqft into project immediately (user is ground truth)
+  if (takeoffCtx && takeoffCtx !== 'wizard') {
+    const pp = state.projects.find(x => x.id === takeoffCtx);
+    if (pp && (!pp.sqft || pp.sqft === 0)) { pp.sqft = sqft; saveState(); }
+  }
+
+  // Read state from the new select
+  const stateVal = document.getElementById('to-state-sel')?.value ||
+                   document.getElementById('to-state')?.value || 'NJ';
 
   const fd = new FormData();
   fd.append('scope', scope);
-  fd.append('project_type', document.getElementById('to-type').value);
-  fd.append('sqft', String(document.getElementById('to-sqft').value || 0));
-  fd.append('tier', document.getElementById('to-tier').value);
-  fd.append('state', document.getElementById('to-state').value);
+  fd.append('project_type', document.getElementById('to-type')?.value || '');
+  fd.append('sqft', String(sqft));
+  fd.append('tier', document.getElementById('to-tier')?.value || 'mid');
+  fd.append('state', stateVal);
   files.forEach(f => fd.append('files', f, f.name));
 
   try {
@@ -2894,8 +3103,8 @@ async function runTakeoff() {
       const p = state.projects.find(x => x.id === takeoffCtx);
       if (p) {
         p.takeoff = data;
-        // If plans contained sqft and project has none, fill it in (never overwrite user entry)
-        const toSqft = Number(document.getElementById('to-sqft')?.value || 0);
+        // Lock confirmed sqft into project (user-entered value is always ground truth)
+        const toSqft = Number(document.getElementById('to-sqft')?.value || 0) || sqft;
         if (toSqft > 0 && (!p.sqft || p.sqft === 0)) p.sqft = toSqft;
         // Rebuild the stored estimate from the fresh takeoff so grandTotal is correct
         const est = buildEstimate(p, data);
@@ -2909,10 +3118,10 @@ async function runTakeoff() {
     render();
   } catch (e) {
     statusEl.style.display = 'none';
-    if (e.isAiBlocked) { showAiBlockedBanner(); if (btn) { btn.disabled = false; btn.textContent = 'Run AI Takeoff'; btn.style.opacity = '1'; } return; }
+    if (e.isAiBlocked) { showAiBlockedBanner(); if (btn) { btn.disabled = false; btn.textContent = '⚡ Run AI Takeoff'; btn.style.opacity = '1'; } return; }
     errorEl.style.display = 'block';
     errorEl.textContent = 'Takeoff failed: ' + (e.message || e) + '. Try again or reduce file sizes.';
-    if (btn) { btn.disabled = false; btn.textContent = 'Run AI Takeoff'; btn.style.opacity = '1'; }
+    if (btn) { btn.disabled = false; btn.textContent = '⚡ Run AI Takeoff — ' + sqft.toLocaleString() + ' SF'; btn.style.opacity = '1'; }
   }
   takeoffRunning = false;
 }
