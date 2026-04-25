@@ -2348,7 +2348,21 @@ async function _handleApi(ep, opts) {
   const fd = opts && opts.body;
   const gf = function(n){ return fd instanceof FormData ? (fd.get(n)||'') : ''; };
   const gfs = function(n){ return fd instanceof FormData ? fd.getAll(n) : []; };
+
+  // Read a File as base64 data URL (for images sent to vision API)
+  async function fileToBase64(file) {
+    return new Promise(function(resolve, reject) {
+      var r = new FileReader();
+      r.onload = function(e){ resolve(e.target.result); };
+      r.onerror = reject;
+      r.readAsDataURL(file);
+    });
+  }
+
+  // Extract text from PDF via PDF.js; returns '' for non-PDFs or on error
   async function pdfText(file) {
+    var isPdf = file.type === 'application/pdf' || (file.name && file.name.toLowerCase().endsWith('.pdf'));
+    if (!isPdf) return '';
     if (typeof pdfjsLib==='undefined') return '';
     try {
       const ab = await file.arrayBuffer();
@@ -2359,26 +2373,65 @@ async function _handleApi(ep, opts) {
         var ct = await pg.getTextContent();
         t += ct.items.map(function(x){return x.str;}).join(' ')+'\n';
       }
-      return t.slice(0,4000);
+      return t.trim().slice(0,4000);
     } catch(e){ return ''; }
   }
+
+  // Build OpenAI message content that handles both PDFs (text) and images (vision)
+  // Returns an array of content parts for a user message
+  async function buildDocContent(files, textPrefix) {
+    var parts = [];
+    if (textPrefix) parts.push({type:'text', text: textPrefix});
+    var pdfTxt = '';
+    var imgFiles = [];
+    for (var fi=0; fi<Math.min(files.length,4); fi++) {
+      var f = files[fi];
+      var isImg = f.type && f.type.startsWith('image/');
+      var isPdf = f.type === 'application/pdf' || (f.name && f.name.toLowerCase().endsWith('.pdf'));
+      if (isPdf) {
+        var t = await pdfText(f);
+        if (t) pdfTxt += '\n--- ' + f.name + ' ---\n' + t;
+      } else if (isImg) {
+        imgFiles.push(f);
+      }
+    }
+    if (pdfTxt) parts.push({type:'text', text:'Plan text extracted:\n'+pdfTxt});
+    // Add up to 3 images for vision
+    for (var ii=0; ii<Math.min(imgFiles.length,3); ii++) {
+      try {
+        var b64url = await fileToBase64(imgFiles[ii]);
+        parts.push({type:'image_url', image_url:{url: b64url, detail:'high'}});
+      } catch(e){}
+    }
+    if (parts.length === (textPrefix ? 1 : 0)) {
+      // Fallback: no usable content found
+      parts.push({type:'text', text:'[No readable plan text or images provided — use scope notes only]'});
+    }
+    return parts;
+  }
+
   if (ep==='/api/intake-extract') {
-    var files=gfs('files'); var txt='';
-    for (var fi=0;fi<Math.min(files.length,3);fi++) txt+=await pdfText(files[fi]);
-    return _oai([{role:'user',content:'Extract from these construction docs. Return JSON with any of: name, client, clientEmail, address, projectType, state (2-letter), scopeNotes. Docs:\n'+(txt||'none')}], 400);
+    var files=gfs('files');
+    var content = await buildDocContent(files, 'Extract project info from these construction documents. Return JSON with any of: name, client, clientEmail, address, projectType, state (2-letter), scopeNotes. If this is a plan image, read any title block, notes, or labels visible.');
+    return _oai([{role:'user', content: content}], 500);
   }
   if (ep==='/api/measure-sqft') {
-    var files=gfs('files'), scope=gf('scope_notes'); var txt='';
-    for (var fi=0;fi<Math.min(files.length,3);fi++) txt+=await pdfText(files[fi]);
-    return _oai([{role:'user',content:'Find the finished square footage in these construction documents. Return JSON: {"sqft":<number or 0>,"source":"where found","confidence":"high|medium|low"}. Only return sqft if clearly stated in the docs. Scope hint: '+scope+'\nDocs:\n'+(txt||'none')}], 150);
+    var files=gfs('files'), scope=gf('scope_notes');
+    var content = await buildDocContent(files, 'Find the total finished square footage in these construction plans/documents. Look for: area schedules, room labels with dimensions, title block SF, or calculate from floor plan dimensions. Return JSON only: {"sqft":<number or 0>,"source":"where you found it","confidence":"high|medium|low","notes":"brief explanation"}. Scope hint: '+scope);
+    return _oai([{role:'user', content: content}], 200);
   }
   if (ep==='/api/takeoff') {
     var files=gfs('files'), scope=gf('scope'), pt=gf('project_type'), sq=gf('sqft'), tier=gf('tier'), st=gf('state');
-    var txt='';
-    for (var fi=0;fi<Math.min(files.length,3);fi++) txt+=await pdfText(files[fi]);
     var tierRates = {budget:'$225-250/sqft all-in',mid:'$285-320/sqft all-in',premium:'$350-425/sqft all-in'};
     var tierRate = tierRates[tier] || tierRates.mid;
     var targetTotal = Math.round(parseInt(sq||100) * (tier==='budget'?237:tier==='premium'?385:300));
+    var userPrompt = 'Generate a detailed line-item takeoff for: '+pt+', '+sq+' sq ft, '+tier+' finish tier, '+st+'. Scope: '+scope+'.'+'\nReturn JSON with these exact fields: {materials:[{item,qty,unit,unitPrice,total}],labor:[{trade,hours,rate,total}],totals:{materials,labor,subtotal,tax,grand},summary:string}. Include 8-12 material line items and 5-7 labor trades. All dollar amounts in full dollars (not thousands). Grand total must be near $'+targetTotal.toLocaleString()+' for a '+tier+'-tier job of this size in '+st+'.';
+    var userContent;
+    if (files && files.length > 0) {
+      userContent = await buildDocContent(files, userPrompt);
+    } else {
+      userContent = userPrompt;
+    }
     return _oai([
       {role:'system',content:[
         'You are a senior licensed general contractor estimator for the Northeast US (NY/NJ/CT/MA) with 20 years experience.',
@@ -2390,10 +2443,10 @@ async function _handleApi(ep, opts) {
         'Do NOT underestimate. Northeast labor and material costs are among the highest in the US.',
         'Return valid JSON only. No markdown, no explanation outside JSON.'
       ].join(' ')},
-      {role:'user',content:'Generate a detailed line-item takeoff for: '+pt+', '+sq+' sq ft, '+tier+' finish tier, '+st+'. Scope: '+scope+'.'+(txt?'\nPlans/docs: '+txt:'')+'\nReturn JSON with these exact fields: {materials:[{item,qty,unit,unitPrice,total}],labor:[{trade,hours,rate,total}],totals:{materials,labor,subtotal,tax,grand},summary:string}. Include 8-12 material line items and 5-7 labor trades. All dollar amounts in full dollars (not thousands). Grand total must be near $'+targetTotal.toLocaleString()+' for a '+tier+'-tier job of this size in '+st+'.'}
+      {role:'user', content: userContent}
     ], 2000);
   }
-  if (ep==='/api/schedule') {
+    if (ep==='/api/schedule') {
     var b={}; try{b=JSON.parse((opts&&opts.body)||'{}');}catch(e){}
     return _oai([{role:'user',content:'Trade-sequenced schedule for '+(b.projectType||'remodel')+', '+(b.sqft||200)+' sq ft, '+(b.state||'NJ')+'. Return JSON: {phases:[{id,name,trade,duration,dependsOn:[],notes}]}. 6-10 phases, demo to punch list sequence. Duration in working days.'}], 700);
   }
