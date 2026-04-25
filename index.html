@@ -4571,6 +4571,7 @@ function renderFieldMode() {
       <div style="font-size:18px;font-weight:900;">Kunst<span style="color:#f97316;">ruction</span>1 <span style="font-weight:400;font-size:12px;color:#94a3b8;">· Field OS</span></div>
       <button id="field-exit-btn" style="background:transparent;border:1px solid rgba(255,255,255,0.2);border-radius:8px;padding:6px 14px;color:#94a3b8;font-size:13px;cursor:pointer;">✕ Exit</button>
     </div>
+    ${(()=>{ const isStandalone = window.navigator.standalone || window.matchMedia('(display-mode: standalone)').matches; const isIOS = /iPhone|iPad|iPod/.test(navigator.userAgent); return (!isStandalone && isIOS) ? `<div id="ios-install-bar" style="background:#f97316;padding:10px 16px;display:flex;align-items:center;gap:10px;flex-shrink:0;"><span style="font-size:20px;">📲</span><div style="flex:1;font-size:12px;font-weight:700;color:#fff;line-height:1.3;">For best photo experience:<br>Tap <strong>Share ↗</strong> → <strong>Add to Home Screen</strong></div><button onclick="document.getElementById('ios-install-bar').remove()" style="background:rgba(0,0,0,0.2);border:none;color:#fff;border-radius:6px;padding:4px 10px;font-size:12px;cursor:pointer;">Got it</button></div>` : ''; })()}
     <div style="padding:10px 14px;background:#0d1525;border-bottom:1px solid rgba(255,255,255,0.06);display:flex;gap:8px;flex-shrink:0;">
       <select id="field-job-select" style="flex:1;background:#1e293b;border:1px solid rgba(255,255,255,0.15);border-radius:8px;padding:10px 12px;color:#fff;font-size:14px;font-weight:600;">
         <option value="">— Select Job —</option>
@@ -4629,17 +4630,18 @@ function bindFieldModeEvents() {
     }, ()=>alert('Could not get location'));
   });
 
-  // Rebuild photo thumbnails from stored dataUrls every time overlay re-renders
+  // Rebuild photo thumbnails — use blobUrl for display if available, else dataUrl
   const thumbsRow = ov.querySelector('#field-thumbs-row');
   if (thumbsRow && fs.photos && fs.photos.length) {
     thumbsRow.innerHTML = '';
     fs.photos.forEach((ph, i) => {
-      if (!ph.dataUrl) return;
+      const src = ph.blobUrl || ph.dataUrl;
+      if (!src) return;
       const wrap = document.createElement('div');
       wrap.style.cssText = 'position:relative;width:80px;height:80px;flex-shrink:0;';
       const img = document.createElement('img');
       img.style.cssText = 'width:80px;height:80px;object-fit:cover;border-radius:8px;display:block;';
-      img.src = ph.dataUrl;
+      img.src = src;
       const rmBtn = document.createElement('button');
       rmBtn.style.cssText = 'position:absolute;top:-6px;right:-6px;background:#ef4444;color:#fff;border:none;border-radius:50%;width:20px;height:20px;font-size:11px;cursor:pointer;line-height:1;';
       rmBtn.textContent = '×';
@@ -4654,32 +4656,31 @@ function bindFieldModeEvents() {
     ov.querySelector('#field-photo-input')?.click();
   });
 
-  // Photo input — read fully first, then build and insert img with src already set
+  // Photo input — iPhone Safari compatible: blob URL for display, canvas for storage
   ov.querySelector('#field-photo-input')?.addEventListener('change', e => {
     const files = Array.from(e.target.files||[]);
     if (!files.length) return;
     const row = ov.querySelector('#field-thumbs-row');
     Array.from(files).forEach(file => {
       const idx = fs.photos.length;
-      fs.photos.push({ dataUrl: '', name: file.name });
+      const blobUrl = URL.createObjectURL(file);
+      fs.photos.push({ dataUrl: '', blobUrl: blobUrl, name: file.name });
+      // Build img with blob URL - works on iPhone Safari
+      const wrap = document.createElement('div');
+      wrap.style.cssText = 'position:relative;width:80px;height:80px;flex-shrink:0;';
+      const img = document.createElement('img');
+      img.style.cssText = 'width:80px;height:80px;object-fit:cover;border-radius:8px;display:block;';
+      img.src = blobUrl;
+      const rmBtn = document.createElement('button');
+      rmBtn.style.cssText = 'position:absolute;top:-6px;right:-6px;background:#ef4444;color:#fff;border:none;border-radius:50%;width:20px;height:20px;font-size:11px;cursor:pointer;line-height:1;';
+      rmBtn.textContent = '×';
+      rmBtn.addEventListener('click', () => { fs.photos.splice(idx,1); URL.revokeObjectURL(blobUrl); wrap.remove(); });
+      wrap.appendChild(img);
+      wrap.appendChild(rmBtn);
+      if (row) row.appendChild(wrap);
+      // Convert to base64 in background for persistent storage
       const reader = new FileReader();
-      reader.onload = ev => {
-        const dataUrl = ev.target.result;
-        fs.photos[idx].dataUrl = dataUrl;
-        // Build wrap with src set BEFORE appending to DOM
-        const wrap = document.createElement('div');
-        wrap.style.cssText = 'position:relative;width:80px;height:80px;flex-shrink:0;';
-        const img = document.createElement('img');
-        img.style.cssText = 'width:80px;height:80px;object-fit:cover;border-radius:8px;display:block;';
-        img.src = dataUrl; // set src before DOM insertion
-        const rmBtn = document.createElement('button');
-        rmBtn.style.cssText = 'position:absolute;top:-6px;right:-6px;background:#ef4444;color:#fff;border:none;border-radius:50%;width:20px;height:20px;font-size:11px;cursor:pointer;line-height:1;';
-        rmBtn.textContent = '×';
-        rmBtn.addEventListener('click', () => { fs.photos.splice(idx,1); wrap.remove(); });
-        wrap.appendChild(img);
-        wrap.appendChild(rmBtn);
-        if (row) row.appendChild(wrap); // insert after src is set
-      };
+      reader.onload = ev => { fs.photos[idx].dataUrl = ev.target.result; };
       reader.readAsDataURL(file);
     });
     e.target.value = '';
