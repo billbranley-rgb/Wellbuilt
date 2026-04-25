@@ -1523,6 +1523,69 @@ const defaultState = {
   },
   projects: [
     {
+      id: 'p-orchard',
+      name: '106 Orchard St — Full Renovation',
+      client: 'Homeowner',
+      clientEmail: '',
+      address: '106 Orchard St, Cranford, NJ 07016',
+      state: 'NJ',
+      projectType: 'Full gut renovation',
+      sqft: 3616,
+      tier: 'premium',
+      status: 'active',
+      stage: 'Active',
+      scopeNotes: '3,616 SF 5-bed/4.5-bath 3-story Colonial built 2023. Full interior renovation: kitchen, all baths, finish carpentry, flooring, paint, trim throughout. Union County, NJ.',
+      createdAt: '2026-04-25',
+      acceptedDate: '2026-04-25',
+      startDate: '2026-05-05',
+      estimate: { grandTotal: 1663360, sqft: 3616, tier: 'premium', state: 'NJ' },
+      estimateStatus: 'approved',
+      tasks: [
+        { id: 'ot1', title: 'Pull Union County building permit', trade: 'General', done: false },
+        { id: 'ot2', title: 'Finalize kitchen cabinet selection', trade: 'Finish', done: false },
+        { id: 'ot3', title: 'Schedule structural engineer walk', trade: 'General', done: false },
+        { id: 'ot4', title: 'Order tile — all 4.5 baths', trade: 'Tile', done: false },
+        { id: 'ot5', title: 'Demo existing finishes — start date May 5', trade: 'General', done: false },
+        { id: 'ot6', title: 'Rough plumbing all baths', trade: 'Plumbing', done: false },
+        { id: 'ot7', title: 'Electrical panel load calc', trade: 'Electrical', done: false },
+      ],
+      milestones: [
+        { id: 'om1', title: 'Permit issued', week: 1, done: false },
+        { id: 'om2', title: 'Demo complete', week: 2, done: false },
+        { id: 'om3', title: 'Rough MEP inspections passed', week: 6, done: false },
+        { id: 'om4', title: 'Drywall complete', week: 10, done: false },
+        { id: 'om5', title: 'Finish carpentry — all floors', week: 14, done: false },
+        { id: 'om6', title: 'Final CO walkthrough', week: 18, done: false },
+      ],
+      logs: [
+        { id: 'ol1', date: '2026-04-25', weather: 'Clear, 68°F', crew: 'Bill Branley', notes: 'Initial site walkthrough complete. 3,616 SF / 3-story colonial confirmed. Scope locked: full interior renovation. Permit application to be filed Monday.' },
+      ],
+      changeOrders: [],
+      notes: [
+        { id: 'on1', author: 'contractor', body: 'Project kicked off. Estimated contract value $1,663,360 (premium tier, NJ rate, 3,616 SF). Permit filing Monday 4/28.', ts: '2026-04-25T17:00:00' },
+      ],
+      invoices: [
+        { id: 'oi1', number: 'INV-2026-0010', amount: 166336, status: 'sent', issued: '2026-04-25', description: 'Deposit — 10% of contract ($1,663,360) due at contract signing' },
+      ],
+      budget: [
+        { cat: 'Demo & Site', budgeted: 48000, actual: 0 },
+        { cat: 'Framing & Structural', budgeted: 95000, actual: 0 },
+        { cat: 'Plumbing — 4.5 baths + kitchen', budgeted: 185000, actual: 0 },
+        { cat: 'Electrical', budgeted: 142000, actual: 0 },
+        { cat: 'HVAC', budgeted: 128000, actual: 0 },
+        { cat: 'Insulation', budgeted: 38000, actual: 0 },
+        { cat: 'Drywall', budgeted: 95000, actual: 0 },
+        { cat: 'Tile — all baths', budgeted: 185000, actual: 0 },
+        { cat: 'Kitchen', budgeted: 220000, actual: 0 },
+        { cat: 'Finish Carpentry', budgeted: 265000, actual: 0 },
+        { cat: 'Paint & Finishes', budgeted: 68000, actual: 0 },
+        { cat: 'Permits & Inspections', budgeted: 12000, actual: 0 },
+      ],
+      punchList: [],
+      rfis: [],
+      photos: [],
+    },
+    {
       id: 'p1',
       name: 'Willow Rd Bath Remodel',
       client: 'The Alvarez Family',
@@ -2504,7 +2567,7 @@ function resetWizard() {
 
 // ---------- AI TAKEOFF ----------
 // Direct OpenAI — no backend required
-const OPENAI_KEY = atob('c2stcHJvai0yeHhfWDZULXZJUTFrU3MybkotaktPbEV5OWdJUXJFSHkxSy1aeDJGa2FCdUFFY2Y2SFdaMlY5aHZpQ196NXp1UkJ1UkRmekZGZVQzQmxia0ZKZ2tHaGVVRDBMbHRLMjZ2QlVWQnZiLU1mOEtRc2I4RGVFZFZ6X2pRc2FDSGludnpQMHRmUGN2Sl83cWhkc3hLclFUMzduNTBRa0E=');
+const OPENAI_KEY = 'sk-proj-REDACTED';
 const OPENAI_URL = 'https://api.openai.com/v1/chat/completions';
 const TAKEOFF_API = '__local__';
 const _realFetch = window.fetch.bind(window);
@@ -6583,7 +6646,7 @@ function renderSettings() {
       </ul>
       <div class="field">
         <label>OpenAI API Key override <span style="font-weight:400;color:var(--text-muted);">(optional — leave blank to use built-in)</span></label>
-        <input class="input mono" id="settings-openai-key" type="password" placeholder="sk-proj-..." value="${state.settings.openaiKeyOverride||''}" autocomplete="off">
+        <input class="input mono" id="settings-openai-key" type="password" placeholder="sk-proj-REDACTED..." value="${state.settings.openaiKeyOverride||''}" autocomplete="off">
       </div>
       <div style="display:flex;gap:8px;align-items:center;">
         <button class="btn btn-primary" id="save-openai-key-btn">${ico('check')} Save Key</button>
