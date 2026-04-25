@@ -4629,14 +4629,23 @@ function bindFieldModeEvents() {
     }, ()=>alert('Could not get location'));
   });
 
-  // Inject photo thumbnails via JS background-image (bypasses iframe data: URI sandbox restriction on <img> tags)
-  if (fs.photos && fs.photos.length) {
+  // Rebuild photo thumbnails from stored dataUrls every time overlay re-renders
+  const thumbsRow = ov.querySelector('#field-thumbs-row');
+  if (thumbsRow && fs.photos && fs.photos.length) {
+    thumbsRow.innerHTML = '';
     fs.photos.forEach((ph, i) => {
-      const thumb = ov.querySelector('#field-thumb-' + i);
-      if (thumb && ph.dataUrl) {
-        thumb.style.backgroundImage = 'url(' + ph.dataUrl + ')';
-        thumb.textContent = '';
-      }
+      if (!ph.dataUrl) return;
+      const wrap = document.createElement('div');
+      wrap.style.cssText = 'position:relative;width:80px;height:80px;flex-shrink:0;';
+      const img = document.createElement('img');
+      img.style.cssText = 'width:80px;height:80px;object-fit:cover;border-radius:8px;display:block;';
+      img.src = ph.dataUrl;
+      const rmBtn = document.createElement('button');
+      rmBtn.style.cssText = 'position:absolute;top:-6px;right:-6px;background:#ef4444;color:#fff;border:none;border-radius:50%;width:20px;height:20px;font-size:11px;cursor:pointer;line-height:1;';
+      rmBtn.textContent = '×';
+      rmBtn.addEventListener('click', () => { fs.photos.splice(i, 1); wrap.remove(); });
+      wrap.appendChild(img); wrap.appendChild(rmBtn);
+      thumbsRow.appendChild(wrap);
     });
   }
 
@@ -4645,32 +4654,52 @@ function bindFieldModeEvents() {
     ov.querySelector('#field-photo-input')?.click();
   });
 
-  // Photo input change — inject img elements directly, no re-render
+  // Photo input change — canvas resize then inject img (Test 5 pattern)
   ov.querySelector('#field-photo-input')?.addEventListener('change', e => {
     const files = Array.from(e.target.files||[]);
     if (!files.length) return;
     const row = ov.querySelector('#field-thumbs-row');
-    files.forEach(file => {
+    Array.from(files).forEach(file => {
       const idx = fs.photos.length;
       fs.photos.push({ dataUrl: '', name: file.name });
+      // Build thumb placeholder first
       const wrap = document.createElement('div');
       wrap.style.cssText = 'position:relative;width:80px;height:80px;flex-shrink:0;';
       const img = document.createElement('img');
-      img.style.cssText = 'width:80px;height:80px;object-fit:cover;border-radius:8px;display:block;';
-      img.onerror = () => { img.style.display='none'; };
+      img.style.cssText = 'width:80px;height:80px;object-fit:cover;border-radius:8px;display:block;background:#1e293b;';
       const rmBtn = document.createElement('button');
       rmBtn.style.cssText = 'position:absolute;top:-6px;right:-6px;background:#ef4444;color:#fff;border:none;border-radius:50%;width:20px;height:20px;font-size:11px;cursor:pointer;line-height:1;';
       rmBtn.textContent = '×';
-      rmBtn.addEventListener('click', () => { fs.photos.splice(idx, 1); wrap.remove(); });
-      wrap.appendChild(img);
-      wrap.appendChild(rmBtn);
+      rmBtn.addEventListener('click', () => { fs.photos.splice(idx,1); wrap.remove(); });
+      wrap.appendChild(img); wrap.appendChild(rmBtn);
       if (row) row.appendChild(wrap);
-      // FileReader → assign src after element is in DOM
+      // Canvas resize (Test 5)
       const reader = new FileReader();
-      reader.onload = ev => { fs.photos[idx].dataUrl = ev.target.result; img.src = ev.target.result; };
+      reader.onload = ev => {
+        const tempImg = new Image();
+        tempImg.onload = () => {
+          try {
+            const MAX = 800;
+            const scale = Math.min(1, MAX / Math.max(tempImg.width, tempImg.height));
+            const w = Math.round(tempImg.width * scale);
+            const h = Math.round(tempImg.height * scale);
+            const canvas = document.createElement('canvas');
+            canvas.width = w; canvas.height = h;
+            canvas.getContext('2d').drawImage(tempImg, 0, 0, w, h);
+            const dataUrl = canvas.toDataURL('image/jpeg', 0.75);
+            fs.photos[idx].dataUrl = dataUrl;
+            img.src = dataUrl;
+          } catch(err) {
+            // Canvas failed — fall back to raw dataUrl
+            fs.photos[idx].dataUrl = ev.target.result;
+            img.src = ev.target.result;
+          }
+        };
+        tempImg.onerror = () => { fs.photos[idx].dataUrl = ev.target.result; img.src = ev.target.result; };
+        tempImg.src = ev.target.result;
+      };
       reader.readAsDataURL(file);
     });
-    // Reset input so same file can be re-selected
     e.target.value = '';
   });
 
