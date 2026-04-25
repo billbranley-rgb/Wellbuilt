@@ -1449,6 +1449,7 @@ function loadState() {
       state.settings = { ...defaultState.settings, ...state.settings };
       if (!state.xaRooms) state.xaRooms = [];
       if (!state.xaMeta) state.xaMeta = { ...defaultState.xaMeta };
+      if (Array.isArray(state.projects)) state.projects.forEach(p => { if (!Array.isArray(p.plans)) p.plans = []; });
     } else {
       state = structuredClone(defaultState);
       // generate estimates for seeded projects
@@ -1487,6 +1488,7 @@ function showToast(msg) {
 function migrateState() {
   // Backfill fields added in customer-portal update
   state.projects.forEach(p => {
+    if (!Array.isArray(p.plans)) p.plans = []; // Plans Vault: [{id,name,size,type,uploadedAt,data}]
     if (!p.estimateStatus) {
       const s = String(p.status || '').toLowerCase();
       const inFlight = s === 'active' || s === 'punch' || s === 'complete';
@@ -2244,10 +2246,10 @@ function statusLabel(s) {
 }
 
 // ---------- WIZARD (new project) ----------
-let wizard = { step: 1, data: { state: 'NJ', tier: 'mid', projectType: 'Kitchen remodel', sqft: 0, address: '', name: '', client: '', clientEmail: '', scopeNotes: '' }, estimate: null, generating: false, generateStep: 0, takeoff: null, schedule: null, planFiles: [] };
+let wizard = { step: 1, data: { state: 'NJ', tier: 'mid', projectType: '', sqft: '', address: '', name: '', client: '', clientEmail: '', scopeNotes: '' }, estimate: null, generating: false, generateStep: 0, takeoff: null, schedule: null, planFiles: [] };
 
 function resetWizard() {
-  wizard = { step: 1, data: { state: 'NJ', tier: 'mid', projectType: 'Kitchen remodel', sqft: 0, address: '', name: '', client: '', clientEmail: '', scopeNotes: '' }, estimate: null, generating: false, generateStep: 0, takeoff: null, schedule: null, planFiles: [] };
+  wizard = { step: 1, data: { state: 'NJ', tier: 'mid', projectType: '', sqft: '', address: '', name: '', client: '', clientEmail: '', scopeNotes: '' }, estimate: null, generating: false, generateStep: 0, takeoff: null, schedule: null, planFiles: [] };
   measureState = { running: false, result: null, error: null };
   intakeExtracted = null;
   intakeExtractError = null;
@@ -2437,6 +2439,20 @@ function mergeIntakeData(data) {
   if (data.sqft && Number(data.sqft) > 0) d.sqft = Number(data.sqft);
 }
 
+// ---------- Plans Vault helpers ----------
+// Convert stored base64 vault entries back to File objects for FormData uploads
+function getPlanFilesFromVault(projectId) {
+  const p = state.projects.find(x => x.id === projectId);
+  if (!p || !Array.isArray(p.plans) || p.plans.length === 0) return [];
+  return p.plans.map(entry => {
+    const byteStr = atob(entry.data.split(',')[1] || entry.data);
+    const ab = new Uint8Array(byteStr.length);
+    for (let i = 0; i < byteStr.length; i++) ab[i] = byteStr.charCodeAt(i);
+    const blob = new Blob([ab], { type: entry.type || 'application/octet-stream' });
+    return new File([blob], entry.name, { type: entry.type || 'application/octet-stream' });
+  });
+}
+
 async function runIntakeAutofill() {
   const files = wizard.planFiles || [];
   if (files.length === 0) { intakeExtractError = 'Add plans or docs first.'; render(); return; }
@@ -2619,17 +2635,32 @@ function openTakeoffModal(ctx) {
 }
 
 function renderTakeoffModal() {
-  let defaults = { projectType: 'Kitchen remodel', sqft: 200, tier: 'mid', state: 'NJ', scope: '' };
+  let defaults = { projectType: '', sqft: '', tier: 'mid', state: 'NJ', scope: '' };
   if (takeoffCtx === 'wizard') {
-    defaults = { projectType: wizard.data.projectType, sqft: wizard.data.sqft || 200, tier: wizard.data.tier, state: wizard.data.state, scope: wizard.data.scopeNotes || '' };
+    defaults = { projectType: wizard.data.projectType || '', sqft: wizard.data.sqft || '', tier: wizard.data.tier, state: wizard.data.state, scope: wizard.data.scopeNotes || '' };
   } else if (takeoffCtx) {
     const p = state.projects.find(x => x.id === takeoffCtx);
     if (p) defaults = { projectType: p.projectType, sqft: p.sqft, tier: p.tier, state: p.state, scope: p.scopeNotes || '' };
   }
 
+  // Auto-load vault plans if this takeoff is tied to a project
+  const vaultProjectId = (takeoffCtx && takeoffCtx !== 'wizard') ? takeoffCtx : null;
+  const vaultFiles = vaultProjectId ? getPlanFilesFromVault(vaultProjectId) : [];
+  if (vaultFiles.length > 0 && takeoffFiles.length === 0) {
+    takeoffFiles = vaultFiles; // pre-seed
+  }
+  const vaultCount = vaultFiles.length;
+  const vaultBanner = vaultCount > 0
+    ? `<div style="display:flex; align-items:center; gap:10px; padding:12px 14px; background:var(--surface-2); border-radius:var(--radius-md); border-left:3px solid var(--orange); margin-bottom:16px; font-size:13px;">
+        <span style="font-size:18px;">📎</span>
+        <div><strong>${vaultCount} plan${vaultCount!==1?'s':''} auto-loaded from vault</strong> <span class="muted">— AI will read these &amp; extract square footage. Add more below or run immediately.</span></div>
+       </div>`
+    : '';
+
   state.modal = {
     title: 'AI Takeoff',
     body: `
+      ${vaultBanner}
       <p class="muted" style="font-size: 13px; margin-bottom: 16px;">Upload plan drawings, PDFs, or spec documents. AI will read them and return a real material + labor list based on what it sees.</p>
 
       <div class="field">
@@ -2688,10 +2719,17 @@ function renderTakeoffModal() {
 function bindTakeoffModal() {
   const fileInput = document.getElementById('to-files');
   const listEl = document.getElementById('to-files-list');
+  // Show any vault files already pre-seeded into takeoffFiles
+  if (listEl && takeoffFiles.length > 0) {
+    listEl.innerHTML = takeoffFiles.map(f => `• ${f.name} (${Math.round(f.size/1024)} KB)`).join('<br>');
+  }
   if (fileInput) {
     fileInput.onchange = () => {
-      takeoffFiles = Array.from(fileInput.files || []).slice(0, 8);
-      listEl.innerHTML = takeoffFiles.length === 0 ? '' : takeoffFiles.map(f => `• ${f.name} (${Math.round(f.size/1024)} KB)`).join('<br>');
+      const newFiles = Array.from(fileInput.files || []);
+      // Merge with existing (vault) files, deduplicate by name
+      const existing = takeoffFiles.filter(f => !newFiles.some(n => n.name === f.name));
+      takeoffFiles = [...existing, ...newFiles].slice(0, 8);
+      if (listEl) listEl.innerHTML = takeoffFiles.length === 0 ? '' : takeoffFiles.map(f => `• ${f.name} (${Math.round(f.size/1024)} KB)`).join('<br>');
     };
   }
   const stateInput = document.getElementById('to-state');
@@ -3072,6 +3110,7 @@ function renderProject() {
   const tab = currentView.params.tab || 'overview';
   const tabs = [
     { key: 'overview', label: 'Overview' },
+    { key: 'plans', label: '📎 Plans' },
     { key: 'progress', label: 'Progress photos' },
     { key: 'schedule', label: 'Schedule' },
     { key: 'tasks', label: 'Tasks' },
@@ -3111,12 +3150,13 @@ function renderProject() {
     </div>
 
     ${tab === 'overview' ? renderTabOverview(p) :
+      tab === 'plans'    ? renderTabPlans(p) :
       tab === 'progress' ? renderTabProgress(p) :
       tab === 'schedule' ? renderTabSchedule(p) :
-      tab === 'tasks' ? renderTabTasks(p) :
-      tab === 'budget' ? renderTabBudget(p) :
-      tab === 'logs' ? renderTabLogs(p) :
-      tab === 'changes' ? renderTabChanges(p) :
+      tab === 'tasks'    ? renderTabTasks(p) :
+      tab === 'budget'   ? renderTabBudget(p) :
+      tab === 'logs'     ? renderTabLogs(p) :
+      tab === 'changes'  ? renderTabChanges(p) :
       renderTabInvoices(p)}
   `;
 }
@@ -3124,6 +3164,68 @@ function renderProject() {
 function budgetTotal(p) { return p.budget.reduce((s,b) => s + b.budgeted, 0); }
 function budgetActual(p) { return p.budget.reduce((s,b) => s + b.actual, 0); }
 function budgetPct(p) { const t = budgetTotal(p); return t > 0 ? Math.round(budgetActual(p) / t * 100) : 0; }
+
+// ─────────────────────────────────────────
+// PLANS VAULT TAB
+// ─────────────────────────────────────────
+function renderTabPlans(p) {
+  const plans = p.plans || [];
+  const hasPdf = plans.some(f => f.type === 'application/pdf' || f.name.toLowerCase().endsWith('.pdf'));
+
+  const fileRows = plans.map(f => {
+    const sizeKb = Math.round((f.size || 0) / 1024);
+    const date = f.uploadedAt ? new Date(f.uploadedAt).toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' }) : '—';
+    const isPdf = f.type === 'application/pdf' || f.name.toLowerCase().endsWith('.pdf');
+    const isImg = f.type && f.type.startsWith('image/');
+    const icon = isPdf ? '📄' : isImg ? '🖼️' : '📎';
+    return `
+      <div class="list-item" style="align-items:center; gap:12px;">
+        <div style="font-size:22px; line-height:1; flex-shrink:0;">${icon}</div>
+        <div class="list-item-main" style="flex:1; min-width:0;">
+          <div class="list-item-title" style="white-space:nowrap; overflow:hidden; text-overflow:ellipsis;">${f.name}</div>
+          <div class="list-item-sub">${sizeKb} KB · uploaded ${date}</div>
+        </div>
+        <button class="btn btn-ghost btn-sm" data-vault-run-takeoff="${p.id}:${f.id}" style="flex-shrink:0;">${ico('camera')}Takeoff</button>
+        <button class="btn btn-ghost btn-sm" style="color:var(--red); flex-shrink:0;" data-vault-delete="${p.id}:${f.id}">✕</button>
+      </div>`;
+  }).join('');
+
+  return `
+    <div class="card" style="max-width:780px;">
+      <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:16px; flex-wrap:wrap; gap:8px;">
+        <div>
+          <h3 style="margin:0;">📎 Plans Vault</h3>
+          <div class="muted" style="font-size:13px; margin-top:3px;">Upload once — AI uses these plans for every estimate &amp; auto-fill on this project.</div>
+        </div>
+        ${plans.length > 0 ? `<button class="btn btn-primary" data-vault-open-takeoff="${p.id}">${ico('camera')}Run AI Takeoff</button>` : ''}
+      </div>
+
+      ${plans.length === 0 ? `
+        <div style="border:2px dashed var(--border); border-radius:var(--radius-lg); padding:36px 24px; text-align:center; background:var(--surface-1);">
+          <div style="font-size:36px; margin-bottom:10px;">📐</div>
+          <div style="font-weight:600; font-size:15px; margin-bottom:6px;">No plans uploaded yet</div>
+          <div class="muted" style="font-size:13px; max-width:360px; margin:0 auto 18px;">Upload PDF plans, blueprints, or images. AI will auto-measure square footage and build a full material + labor takeoff every time you run an estimate.</div>
+          <button class="btn btn-primary" id="vault-pick-btn-${p.id}">${ico('camera')}Upload plans</button>
+          <input type="file" id="vault-file-input-${p.id}" accept="image/*,application/pdf" multiple style="display:none;" />
+        </div>
+      ` : `
+        <div style="display:flex; flex-direction:column; gap:6px; margin-bottom:16px;">${fileRows}</div>
+        <div style="border-top:1px solid var(--border); padding-top:14px; display:flex; align-items:center; gap:10px; flex-wrap:wrap;">
+          <button class="btn btn-secondary btn-sm" id="vault-pick-btn-${p.id}">${ico('camera')}Add more plans</button>
+          <input type="file" id="vault-file-input-${p.id}" accept="image/*,application/pdf" multiple style="display:none;" />
+          <span class="muted" style="font-size:12px;">${plans.length} file${plans.length !== 1 ? 's' : ''} stored · will auto-load for all AI features on this project</span>
+        </div>
+      `}
+
+      ${plans.length > 0 ? `
+        <div style="margin-top:18px; padding:14px; background:var(--surface-2); border-radius:var(--radius-md); border-left:3px solid var(--orange);">
+          <div style="font-weight:600; font-size:13px; margin-bottom:4px;">⚡ AI reads these automatically</div>
+          <div class="muted" style="font-size:12.5px; line-height:1.5;">
+            When you run an AI Takeoff or use the new project wizard on this job, the vault plans load automatically — no re-uploading. Square footage is extracted and locked in from the plans.
+          </div>
+        </div>` : ''}
+    </div>`;
+}
 
 function renderTabOverview(p) {
   return `
@@ -6369,6 +6471,81 @@ function bindEvents() {
   document.querySelectorAll('[data-open-takeoff]').forEach(el => {
     el.onclick = (e) => { e.stopPropagation(); openTakeoffModal(el.dataset.openTakeoff); };
   });
+
+  // ──────────────────────── Plans Vault events ────────────────────────
+  // Upload button for Plans Vault tab
+  document.querySelectorAll('[id^="vault-pick-btn-"]').forEach(btn => {
+    const projectId = btn.id.replace('vault-pick-btn-', '');
+    const input = document.getElementById('vault-file-input-' + projectId);
+    if (input) {
+      btn.onclick = (e) => { e.preventDefault(); e.stopPropagation(); input.click(); };
+      input.onchange = () => {
+        const files = Array.from(input.files || []);
+        if (!files.length) return;
+        const p = state.projects.find(x => x.id === projectId);
+        if (!p) return;
+        if (!Array.isArray(p.plans)) p.plans = [];
+        // Read each file as base64 and store
+        let pending = files.length;
+        files.forEach(file => {
+          const reader = new FileReader();
+          reader.onload = (ev) => {
+            // Check 40 MB limit
+            if (file.size > 40 * 1024 * 1024) { showToast(file.name + ' is over 40 MB — skipped'); pending--; if (pending === 0) { saveState(); render(); } return; }
+            // Deduplicate by name
+            if (p.plans.some(e => e.name === file.name)) { showToast(file.name + ' already in vault'); pending--; if (pending === 0) { saveState(); render(); } return; }
+            p.plans.push({
+              id: 'vf_' + Date.now() + '_' + Math.random().toString(36).slice(2,6),
+              name: file.name,
+              size: file.size,
+              type: file.type || 'application/octet-stream',
+              uploadedAt: new Date().toISOString(),
+              data: ev.target.result, // base64 data URL
+            });
+            pending--;
+            if (pending === 0) {
+              saveState();
+              showToast('Plans saved to vault: ' + p.plans.length + ' file' + (p.plans.length !== 1 ? 's' : ''));
+              render();
+            }
+          };
+          reader.readAsDataURL(file);
+        });
+        input.value = '';
+      };
+    }
+  });
+
+  // Delete a vault plan
+  document.querySelectorAll('[data-vault-delete]').forEach(btn => {
+    btn.onclick = (e) => {
+      e.stopPropagation();
+      const [projectId, fileId] = btn.dataset.vaultDelete.split(':');
+      const p = state.projects.find(x => x.id === projectId);
+      if (!p) return;
+      const before = p.plans.length;
+      p.plans = p.plans.filter(f => f.id !== fileId);
+      if (p.plans.length < before) { saveState(); showToast('Plan removed from vault'); render(); }
+    };
+  });
+
+  // Open takeoff from vault (button in Plans tab header)
+  document.querySelectorAll('[data-vault-open-takeoff]').forEach(btn => {
+    btn.onclick = (e) => { e.stopPropagation(); openTakeoffModal(btn.dataset.vaultOpenTakeoff); };
+  });
+
+  // Takeoff from a single vault file
+  document.querySelectorAll('[data-vault-run-takeoff]').forEach(btn => {
+    btn.onclick = (e) => {
+      e.stopPropagation();
+      const [projectId, fileId] = btn.dataset.vaultRunTakeoff.split(':');
+      const p = state.projects.find(x => x.id === projectId);
+      if (!p) return;
+      // Open modal — it will auto-load all vault files; if user wants just one, they can remove others
+      openTakeoffModal(projectId);
+    };
+  });
+  // ───────────────────────────────────────────────────────
 
   // Step-1 plan drop zone
   const dropZone = document.getElementById('plan-drop');
