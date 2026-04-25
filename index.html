@@ -4630,23 +4630,23 @@ function bindFieldModeEvents() {
     }, ()=>alert('Could not get location'));
   });
 
-  // Rebuild photo thumbnails — use blobUrl for display if available, else dataUrl
+  // Rebuild photo thumbnails — use div background-image (immune to src stripping)
   const thumbsRow = ov.querySelector('#field-thumbs-row');
   if (thumbsRow && fs.photos && fs.photos.length) {
     thumbsRow.innerHTML = '';
     fs.photos.forEach((ph, i) => {
-      const src = ph.blobUrl || ph.dataUrl;
+      const src = ph.dataUrl;
       if (!src) return;
       const wrap = document.createElement('div');
       wrap.style.cssText = 'position:relative;width:80px;height:80px;flex-shrink:0;';
-      const img = document.createElement('img');
-      img.style.cssText = 'width:80px;height:80px;object-fit:cover;border-radius:8px;display:block;';
-      img.src = src;
+      const thumb = document.createElement('div');
+      thumb.style.cssText = 'width:80px;height:80px;border-radius:8px;background:#1e293b center/cover no-repeat;';
+      thumb.style.backgroundImage = 'url(' + src + ')';
       const rmBtn = document.createElement('button');
       rmBtn.style.cssText = 'position:absolute;top:-6px;right:-6px;background:#ef4444;color:#fff;border:none;border-radius:50%;width:20px;height:20px;font-size:11px;cursor:pointer;line-height:1;';
       rmBtn.textContent = '×';
       rmBtn.addEventListener('click', () => { fs.photos.splice(i, 1); wrap.remove(); });
-      wrap.appendChild(img); wrap.appendChild(rmBtn);
+      wrap.appendChild(thumb); wrap.appendChild(rmBtn);
       thumbsRow.appendChild(wrap);
     });
   }
@@ -4692,9 +4692,12 @@ function bindFieldModeEvents() {
           if (data.secure_url) {
             fs.photos[idx].dataUrl = data.secure_url;
             fs.photos[idx].uploading = false;
-            img.src = data.secure_url;
-            img.style.display = 'block';
-            placeholder.style.display = 'none';
+            // Use background-image on a div — immune to pplx inline-edit src stripping
+            placeholder.style.backgroundImage = 'url(' + data.secure_url + ')';
+            placeholder.style.backgroundSize = 'cover';
+            placeholder.style.backgroundPosition = 'center';
+            placeholder.style.border = 'none';
+            placeholder.textContent = '';
           } else {
             placeholder.textContent = '❌';
             showToast('Upload failed — check Cloudinary preset');
