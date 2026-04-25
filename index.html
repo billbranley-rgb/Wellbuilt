@@ -4424,10 +4424,10 @@ function renderFieldMode() {
 
   // Tab button helper
   const tabBtn = (key, emoji, label, badge) => `
-    <button class="fm-tab-btn ${fieldState.tab===key?'active':''}" data-field-tab="${key}">
-      <span style="font-size:16px;">${emoji}</span>
-      <span>${label}</span>
-      ${badge > 0 ? `<span class="fm-badge">${badge}</span>` : ''}
+    <button data-field-tab="${key}" style="flex:1;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:3px;padding:10px 2px;border:none;border-radius:10px;cursor:pointer;min-height:62px;position:relative;background:${fieldState.tab===key?'rgba(249,115,22,0.18)':'transparent'};color:${fieldState.tab===key?'#f97316':'#94a3b8'};outline:${fieldState.tab===key?'2px solid rgba(249,115,22,0.5)':'none'};">
+      <span style="font-size:24px;line-height:1;">${emoji}</span>
+      <span style="font-size:10px;font-weight:700;white-space:nowrap;">${label}</span>
+      ${badge > 0 ? `<span style="position:absolute;top:6px;right:8px;background:#f97316;color:#fff;border-radius:9px;font-size:10px;font-weight:800;padding:1px 5px;min-width:16px;text-align:center;">${badge}</span>` : ''}
     </button>`;
 
   // ── TAB: DAILY LOG ──────────────────────────────────────────────
@@ -4594,14 +4594,14 @@ function renderFieldMode() {
     </div>`;
 
   return `
-    <div class="field-shell">
+    <div style="display:flex;flex-direction:column;background:#0a0f1e;color:#fff;font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',sans-serif;max-width:540px;margin:0 auto;">
       <!-- Header: brand + job selector -->
       <div class="field-topbar">
         <div class="field-topbar-title">Kunst<span>ruction</span>1 <span style="font-weight:400;font-size:0.8rem;color:#94a3b8;">· Field OS</span></div>
       </div>
       ${jobSelector}
       <!-- Scrollable body -->
-      <div class="field-body field-body-has-bottom-nav">
+      <div class="field-body" style="padding-bottom:16px;">
         ${installBanner}
         ${fieldState.tab === 'log'   ? renderLogTab()   : ''}
         ${fieldState.tab === 'punch' ? renderPunchTab() : ''}
@@ -4609,8 +4609,8 @@ function renderFieldMode() {
         ${fieldState.tab === 'co'    ? renderCOTab()    : ''}
         ${fieldState.tab === 'tasks' ? renderTasksTab() : ''}
       </div>
-      <!-- Bottom nav: all 5 field action tabs pinned to bottom -->
-      <div class="fm-bottom-nav">
+      <!-- Bottom nav: all 5 field action tabs -->
+      <div style="display:flex;background:#0d1525;border-top:2px solid rgba(249,115,22,0.4);padding:6px 4px max(10px,env(safe-area-inset-bottom));gap:4px;">
         ${tabBtn('log',   '📋', 'Daily Log',  0)}
         ${tabBtn('punch', '🔧', 'Punch List', openPunch)}
         ${tabBtn('rfi',   '❓', 'RFIs',       openRfis)}
