@@ -4632,20 +4632,18 @@ function bindFieldModeEvents() {
     }, ()=>alert('Could not get location'));
   });
 
-  // Photo input — buffer ALL reads before re-rendering to avoid mid-read DOM wipe
-  ov.querySelector('#field-photo-input')?.addEventListener('change', e => {
+  // Photo input — resize first (raw camera photos are too large for innerHTML), then buffer all before re-render
+  ov.querySelector('#field-photo-input')?.addEventListener('change', async e => {
     const files = Array.from(e.target.files||[]);
     if (!files.length) return;
-    let done = 0;
-    files.forEach(file => {
-      const reader = new FileReader();
-      reader.onload = ev => {
-        fs.photos.push({ dataUrl: ev.target.result, name: file.name });
-        done++;
-        if (done === files.length) { renderFieldMode(); bindFieldModeEvents(); }
-      };
-      reader.readAsDataURL(file);
-    });
+    for (const file of files) {
+      try {
+        const dataUrl = await fileToResizedDataUrl(file, 1200, 0.80);
+        fs.photos.push({ dataUrl, name: file.name });
+      } catch(err) { showToast('Could not load photo: ' + file.name); }
+    }
+    renderFieldMode();
+    bindFieldModeEvents();
   });
 
   // Remove photo
