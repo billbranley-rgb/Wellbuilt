@@ -907,10 +907,11 @@
   position: sticky; top: 56px; z-index: 40;
 }
 .fm-tab-btn {
-  flex: 1; padding: 11px 6px; border: none; background: transparent;
-  color: #94a3b8; font-size: 13px; font-weight: 600; cursor: pointer;
+  flex: 1; padding: 10px 3px; border: none; background: transparent;
+  color: #94a3b8; font-size: 11px; font-weight: 600; cursor: pointer;
   border-bottom: 2px solid transparent; transition: all 0.15s;
-  display: flex; align-items: center; justify-content: center; gap: 5px;
+  display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 3px;
+  white-space: nowrap;
 }
 .fm-tab-btn.active { color: #f97316; border-bottom-color: #f97316; }
 .fm-tab-btn:hover:not(.active) { color: #e2e8f0; }
@@ -997,13 +998,14 @@
 }
 
 /* ── FIELD MODE ── */
+.content-field { padding: 0 !important; max-width: 100% !important; }
 .field-shell {
   min-height: 100dvh;
   background: #0a0f1e;
   color: #fff;
   font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
   display: flex; flex-direction: column;
-  max-width: 480px; margin: 0 auto;
+  max-width: 540px; margin: 0 auto;
 }
 .field-topbar {
   background: #111827;
@@ -1882,7 +1884,7 @@ function render() {
         ${renderSidebar()}
         <div class="main">
           ${renderTopbar()}
-          <div class="content">${renderPage()}</div>
+          <div class="content${currentView.name === 'field' ? ' content-field' : ''}">${renderPage()}</div>
         </div>
         ${renderMobileNav()}
       </div>
