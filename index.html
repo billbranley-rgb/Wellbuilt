@@ -4690,14 +4690,24 @@ function bindFieldModeEvents() {
         .then(r => r.json())
         .then(data => {
           if (data.secure_url) {
-            fs.photos[idx].dataUrl = data.secure_url;
+            fs.photos[idx].cloudUrl = data.secure_url;
             fs.photos[idx].uploading = false;
-            // Use background-image on a div — immune to pplx inline-edit src stripping
-            placeholder.style.backgroundImage = 'url(' + data.secure_url + ')';
-            placeholder.style.backgroundSize = 'cover';
-            placeholder.style.backgroundPosition = 'center';
-            placeholder.style.border = 'none';
-            placeholder.textContent = '';
+            // Fetch back as blob then convert to data: URL for display (bypasses pplx url() stripping)
+            fetch(data.secure_url)
+              .then(r => r.blob())
+              .then(blob => new Promise((res, rej) => { const rd = new FileReader(); rd.onload = () => res(rd.result); rd.onerror = rej; rd.readAsDataURL(blob); }))
+              .then(dataUrl => {
+                fs.photos[idx].dataUrl = dataUrl;
+                placeholder.style.cssText = 'width:80px;height:80px;border-radius:8px;background:#1e293b center/cover no-repeat;border:none;';
+                placeholder.style.backgroundImage = 'url(' + dataUrl + ')';
+                placeholder.textContent = '';
+              })
+              .catch(() => {
+                // If fetch-back fails, store cloud URL and show check mark
+                fs.photos[idx].dataUrl = data.secure_url;
+                placeholder.textContent = '✅';
+                placeholder.style.background = '#1e293b';
+              });
           } else {
             placeholder.textContent = '❌';
             showToast('Upload failed — check Cloudinary preset');
