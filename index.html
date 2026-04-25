@@ -2925,11 +2925,11 @@ function renderTakeoffModal() {
       </div>
 
       <!-- STEP 2: Run Takeoff -->
-      <div style="${stepStyle(false, step1Done)}">
+      <div id="to-step2-panel" style="${stepStyle(false, step1Done)}">
         ${dot(false, '2')}
         <div style="flex:1;">
           <div style="font-weight:700;font-size:14px;">Step 2: Generate Precise Line-Item Estimate</div>
-          <div class="muted" style="font-size:12px;margin-top:2px;">
+          <div id="to-step2-msg" class="muted" style="font-size:12px;margin-top:2px;">
             ${step1Done
               ? `Ready — using <strong>${Number(defaults.sqft||sqftMeasured||0).toLocaleString()} SF</strong>. AI will calculate quantities for every trade.`
               : 'Enter square footage above first.'}
@@ -2982,20 +2982,38 @@ function bindTakeoffModal() {
     stateSel.onchange = () => { stateHid.value = stateSel.value; };
   }
 
-  // Sqft input → update Run button label live
+  // Sqft input → update Run button + Step 2 panel live
+  const step2Panel = document.getElementById('to-step2-panel');
+  const step2Msg   = document.getElementById('to-step2-msg');
+  const greenSoft  = 'var(--green-soft,#f0fdf4)';
+  const surfaceTwo = 'var(--surface-2)';
+  const greenBdr   = 'var(--green)';
+  const orangeBdr  = 'var(--orange)';
   if (sqftInput && runBtn) {
     const syncRunBtn = () => {
       const v = parseInt(sqftInput.value) || 0;
       if (v > 0) {
+        // Activate button
         runBtn.disabled = false;
-        runBtn.textContent = '\u26a1 Run AI Takeoff — ' + v.toLocaleString() + ' SF';
+        runBtn.textContent = '\u26a1 Run AI Takeoff \u2014 ' + v.toLocaleString() + ' SF';
+        // Update Step 2 panel to active/ready state
+        if (step2Panel) {
+          step2Panel.style.background = surfaceTwo;
+          step2Panel.style.borderColor = orangeBdr;
+        }
+        if (step2Msg) step2Msg.innerHTML = 'Ready \u2014 using <strong>' + v.toLocaleString() + ' SF</strong>. AI will calculate quantities for every trade.';
       } else {
         runBtn.disabled = true;
         runBtn.textContent = '\u26a1 Run AI Takeoff';
+        if (step2Panel) {
+          step2Panel.style.background = surfaceTwo;
+          step2Panel.style.borderColor = 'var(--border)';
+        }
+        if (step2Msg) step2Msg.textContent = 'Enter square footage above first.';
       }
     };
     sqftInput.oninput = syncRunBtn;
-    // Fire immediately on bind — catches pre-filled values from defaults.sqft
+    // Fire immediately on bind — catches pre-filled or typed-before-bind values
     syncRunBtn();
   }
 
