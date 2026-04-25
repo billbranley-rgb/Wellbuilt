@@ -2274,13 +2274,33 @@ window.fetch = async function(url, opts) {
 };
 async function _oai(messages, max_tokens) {
   max_tokens = max_tokens || 900;
-  const res = await _realFetch(OPENAI_URL, {
-    method:'POST',
-    headers:{'Content-Type':'application/json','Authorization':'Bearer '+OPENAI_KEY},
-    body: JSON.stringify({model:'gpt-4o-mini', messages, max_tokens, response_format:{type:'json_object'}})
-  });
+  // Allow user-provided key override from Settings
+  const activeKey = (state && state.settings && state.settings.openaiKeyOverride && state.settings.openaiKeyOverride.startsWith('sk-'))
+    ? state.settings.openaiKeyOverride
+    : OPENAI_KEY;
+  // Guard: key must be present and look valid
+  if (!activeKey || !activeKey.startsWith('sk-')) {
+    throw new Error('OpenAI key not configured — check Settings');
+  }
+  let res;
+  try {
+    res = await _realFetch(OPENAI_URL, {
+      method:'POST',
+      headers:{'Content-Type':'application/json','Authorization':'Bearer '+activeKey},
+      body: JSON.stringify({model:'gpt-4o-mini', messages, max_tokens, response_format:{type:'json_object'}})
+    });
+  } catch(netErr) {
+    // Network-level failure (ad blocker, offline, CORS, etc.)
+    throw new Error('AI request blocked — check network/ad blocker, or try the Perplexity link instead of GitHub Pages.');
+  }
   const d = await res.json();
-  if (!res.ok) throw new Error((d.error&&d.error.message)||'OpenAI error');
+  if (!res.ok) {
+    const msg = (d.error&&d.error.message) || 'OpenAI error ' + res.status;
+    // Surface quota / auth errors clearly
+    if (res.status === 401) throw new Error('OpenAI key invalid or expired');
+    if (res.status === 429) throw new Error('OpenAI quota reached — try again in a moment');
+    throw new Error(msg);
+  }
   return JSON.parse(d.choices[0].message.content);
 }
 async function _handleApi(ep, opts) {
@@ -5790,6 +5810,25 @@ function renderSettings() {
     </div>
     <div class="spacer"></div>
     <div class="card">
+      <h3>AI Settings</h3>
+      <p class="muted" style="font-size:13px;margin-bottom:14px;">If AI features show <strong>"AI request blocked"</strong> or <strong>"Failed to fetch"</strong>, your browser or network is blocking the OpenAI call. This is common with ad blockers (uBlock Origin, Brave Shields, etc.). Solutions:</p>
+      <ul style="font-size:13px;color:var(--text-muted);margin:0 0 14px 18px;line-height:1.8;">
+        <li>Disable ad blocker for this page and reload</li>
+        <li>Use the <strong>Perplexity link</strong> instead of GitHub Pages</li>
+        <li>Or enter your own OpenAI key below (stored in this browser only, never sent anywhere else)</li>
+      </ul>
+      <div class="field">
+        <label>OpenAI API Key override <span style="font-weight:400;color:var(--text-muted);">(optional — leave blank to use built-in)</span></label>
+        <input class="input mono" id="settings-openai-key" type="password" placeholder="sk-proj-..." value="${state.settings.openaiKeyOverride||''}" autocomplete="off">
+      </div>
+      <div style="display:flex;gap:8px;align-items:center;">
+        <button class="btn btn-primary" id="save-openai-key-btn">${ico('check')} Save Key</button>
+        <button class="btn btn-ghost" id="clear-openai-key-btn">Clear</button>
+        <span id="openai-key-status" style="font-size:12px;color:var(--text-muted);"></span>
+      </div>
+    </div>
+    <div class="spacer"></div>
+    <div class="card">
       <h3>About</h3>
       <p class="muted" style="font-size: 13.5px;">Kunstruction1 — field intelligence for Northeast general contractors. Flash estimates, job lifecycle, homeowner portals, and invoice workflows in one tool.</p>
     </div>
@@ -6302,6 +6341,31 @@ function bindEvents() {
     el.oninput = () => { state.settings[el.dataset.s] = el.value; };
   });
   document.querySelector('[data-save-settings]')?.addEventListener('click', () => { saveState(); showToast('Settings saved'); });
+
+  // OpenAI key override
+  document.getElementById('save-openai-key-btn')?.addEventListener('click', () => {
+    const keyEl = document.getElementById('settings-openai-key');
+    const statusEl = document.getElementById('openai-key-status');
+    if (!keyEl) return;
+    const val = keyEl.value.trim();
+    if (val && !val.startsWith('sk-')) {
+      if (statusEl) statusEl.textContent = '⚠️ Key must start with sk-';
+      return;
+    }
+    state.settings.openaiKeyOverride = val;
+    saveState();
+    if (statusEl) statusEl.textContent = val ? '✅ Key saved — AI will use your key' : '✅ Cleared — using built-in key';
+    showToast(val ? 'Custom OpenAI key saved' : 'Key cleared');
+  });
+  document.getElementById('clear-openai-key-btn')?.addEventListener('click', () => {
+    const keyEl = document.getElementById('settings-openai-key');
+    const statusEl = document.getElementById('openai-key-status');
+    if (keyEl) keyEl.value = '';
+    state.settings.openaiKeyOverride = '';
+    saveState();
+    if (statusEl) statusEl.textContent = '✅ Cleared — using built-in key';
+    showToast('Custom key cleared');
+  });
   document.querySelector('[data-export-data]')?.addEventListener('click', exportData);
   document.querySelector('[data-import-data]')?.addEventListener('click', () => document.getElementById('import-file').click());
   document.getElementById('import-file')?.addEventListener('change', importData);
