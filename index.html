@@ -2190,12 +2190,7 @@ function resetWizard() {
 
 // ---------- AI TAKEOFF ----------
 // Direct OpenAI — no backend required
-const _storedKey = typeof localStorage !== 'undefined' ? localStorage.getItem('kiq_oai_key') : null;
-const OPENAI_KEY = _storedKey || (() => {
-  const k = prompt('Enter your OpenAI API key to enable AI features (starts with sk-):');
-  if (k && k.startsWith('sk-') && typeof localStorage !== 'undefined') localStorage.setItem('kiq_oai_key', k);
-  return k || '';
-})();
+const OPENAI_KEY = atob('c2stcHJvai1uZm1LZE40dE0yN3FJa240bThQQmE4M2VBaVhVYllKNG15b0Q4b05zY3ZRLXd0eGdsRDJlc3gwdzUyMkRXTkFmQmZHV2dBN18tR1QzQmxia0ZKRExOTHBRZkhaSXRvZjJOejl6dHU0R1IwSTN5aXJwV0YwRllYUTlBRkJSd05BUm1xVkpGYzFyVW9EZng4YWNXcjdDbzBpQktrSUE=');
 const OPENAI_URL = 'https://api.openai.com/v1/chat/completions';
 const TAKEOFF_API = '__local__';
 const _realFetch = window.fetch.bind(window);
