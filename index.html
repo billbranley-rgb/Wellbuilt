@@ -4453,12 +4453,9 @@ function renderFieldMode() {
       const logs = proj.logs || [];
       return `
         <div style="font-weight:700;font-size:13px;color:#f97316;text-transform:uppercase;letter-spacing:.05em;margin-bottom:10px;">📷 Photos</div>
-        <label style="display:block;background:#1e293b;border:2px dashed rgba(249,115,22,0.4);border-radius:12px;padding:18px;text-align:center;cursor:pointer;margin-bottom:14px;">
-          <input id="field-photo-input" type="file" accept="image/*" multiple capture="environment" style="display:none;">
-          <div style="font-size:28px;">📸</div>
-          <div style="font-size:13px;color:#94a3b8;margin-top:4px;">Tap to take / upload photos</div>
-        </label>
-        ${fs.photos.length > 0 ? `<div id="field-thumbs-row" style="display:flex;gap:8px;flex-wrap:wrap;margin-bottom:14px;">${fs.photos.map((ph,i)=>`<div style="position:relative;"><div id="field-thumb-${i}" data-photo-idx="${i}" style="width:80px;height:80px;border-radius:8px;border:1px solid rgba(255,255,255,0.1);background:#1e293b center/cover no-repeat;display:flex;align-items:center;justify-content:center;font-size:22px;">📸</div><button data-remove-photo="${i}" style="position:absolute;top:-6px;right:-6px;background:#ef4444;color:#fff;border:none;border-radius:50%;width:20px;height:20px;font-size:12px;cursor:pointer;display:flex;align-items:center;justify-content:center;">×</button></div>`).join('')}</div>` : ''}
+        <input id="field-photo-input" type="file" accept="image/*" multiple style="display:none;">
+        <div id="field-thumbs-row" style="display:flex;gap:8px;flex-wrap:wrap;margin-bottom:14px;"></div>
+        <button id="field-photo-btn" type="button" style="width:100%;background:#1e293b;border:2px dashed rgba(249,115,22,0.4);border-radius:12px;padding:18px;text-align:center;cursor:pointer;margin-bottom:14px;color:#fff;font-size:15px;">📸 Tap to add photos</button>
         <div style="font-weight:700;font-size:13px;color:#f97316;text-transform:uppercase;letter-spacing:.05em;margin-bottom:8px;">📝 Daily Log</div>
         <textarea id="field-log-text" placeholder="What was done today? Any issues, materials used, crew on site..." style="width:100%;box-sizing:border-box;background:#1e293b;border:1px solid rgba(255,255,255,0.1);border-radius:10px;padding:12px;color:#fff;font-size:15px;min-height:100px;resize:none;">${fs.logText||''}</textarea>
         <button id="field-submit-btn" style="width:100%;margin-top:12px;background:#f97316;color:#fff;border:none;border-radius:12px;padding:16px;font-size:16px;font-weight:800;cursor:pointer;">✓ Submit Log</button>
@@ -4643,38 +4640,38 @@ function bindFieldModeEvents() {
     });
   }
 
-  // Photo input — inject thumbs directly into DOM, no re-render (avoids blob URL invalidation)
+  // Photo button — programmatic click on hidden input (same pattern as working test page)
+  ov.querySelector('#field-photo-btn')?.addEventListener('click', () => {
+    ov.querySelector('#field-photo-input')?.click();
+  });
+
+  // Photo input change — inject img elements directly, no re-render
   ov.querySelector('#field-photo-input')?.addEventListener('change', e => {
     const files = Array.from(e.target.files||[]);
     if (!files.length) return;
-    // Find or create the thumbs row
-    let row = ov.querySelector('#field-thumbs-row');
-    if (!row) {
-      row = document.createElement('div');
-      row.id = 'field-thumbs-row';
-      row.style.cssText = 'display:flex;gap:8px;flex-wrap:wrap;margin-bottom:14px;';
-      const label = ov.querySelector('label[style*="dashed"]');
-      if (label && label.parentNode) label.parentNode.insertBefore(row, label.nextSibling);
-    }
+    const row = ov.querySelector('#field-thumbs-row');
     files.forEach(file => {
-      const blobUrl = URL.createObjectURL(file);
       const idx = fs.photos.length;
-      fs.photos.push({ dataUrl: blobUrl, name: file.name, isBlob: true });
-      // Build thumb directly in DOM
+      fs.photos.push({ dataUrl: '', name: file.name });
       const wrap = document.createElement('div');
-      wrap.style.cssText = 'position:relative;';
-      const thumb = document.createElement('div');
-      thumb.style.cssText = 'width:80px;height:80px;border-radius:8px;border:1px solid rgba(255,255,255,0.1);background:#1e293b center/cover no-repeat;';
-      thumb.style.backgroundImage = 'url(' + blobUrl + ')';
+      wrap.style.cssText = 'position:relative;width:80px;height:80px;flex-shrink:0;';
+      const img = document.createElement('img');
+      img.style.cssText = 'width:80px;height:80px;object-fit:cover;border-radius:8px;display:block;';
+      img.onerror = () => { img.style.display='none'; };
       const rmBtn = document.createElement('button');
-      rmBtn.dataset.removePhoto = idx;
-      rmBtn.style.cssText = 'position:absolute;top:-6px;right:-6px;background:#ef4444;color:#fff;border:none;border-radius:50%;width:20px;height:20px;font-size:12px;cursor:pointer;';
+      rmBtn.style.cssText = 'position:absolute;top:-6px;right:-6px;background:#ef4444;color:#fff;border:none;border-radius:50%;width:20px;height:20px;font-size:11px;cursor:pointer;line-height:1;';
       rmBtn.textContent = '×';
       rmBtn.addEventListener('click', () => { fs.photos.splice(idx, 1); wrap.remove(); });
-      wrap.appendChild(thumb);
+      wrap.appendChild(img);
       wrap.appendChild(rmBtn);
-      row.appendChild(wrap);
+      if (row) row.appendChild(wrap);
+      // FileReader → assign src after element is in DOM
+      const reader = new FileReader();
+      reader.onload = ev => { fs.photos[idx].dataUrl = ev.target.result; img.src = ev.target.result; };
+      reader.readAsDataURL(file);
     });
+    // Reset input so same file can be re-selected
+    e.target.value = '';
   });
 
   // Remove photo
@@ -4686,29 +4683,21 @@ function bindFieldModeEvents() {
   ov.querySelector('#field-log-text')?.addEventListener('input', e => { fs.logText = e.target.value; });
 
   // Submit log
-  ov.querySelector('#field-submit-btn')?.addEventListener('click', async () => {
+  ov.querySelector('#field-submit-btn')?.addEventListener('click', () => {
     const logEl = ov.querySelector('#field-log-text');
     if (logEl) fs.logText = logEl.value;
     const proj = state.projects.find(p=>p.id===fs.jobId);
     if (!proj) return;
     if (!proj.logs) proj.logs = [];
-    // Convert any blob URLs to base64 for persistent storage
-    const resolvedPhotos = await Promise.all(fs.photos.map(async ph => {
-      if (ph.isBlob) {
-        try {
-          const dataUrl = await fileToResizedDataUrl(await fetch(ph.dataUrl).then(r=>r.blob()), 1200, 0.80);
-          URL.revokeObjectURL(ph.dataUrl);
-          return { dataUrl, name: ph.name };
-        } catch(e) { return ph; }
-      }
-      return ph;
-    }));
-    const entry = { id:'log-'+Date.now(), date: new Date().toLocaleDateString('en-US',{weekday:'short',month:'short',day:'numeric'}), text: fs.logText||'(No notes)', author: state.settings?.company||'Field', gps: fs.gps?fs.gpsLabel:null, photos: resolvedPhotos.map(p=>p.dataUrl) };
+    const entry = { id:'log-'+Date.now(), date: new Date().toLocaleDateString('en-US',{weekday:'short',month:'short',day:'numeric'}), text: fs.logText||'(No notes)', author: state.settings?.company||'Field', gps: fs.gps?fs.gpsLabel:null, photos: fs.photos.map(p=>p.dataUrl) };
     proj.logs.unshift(entry);
     if (!proj.photos) proj.photos=[];
-    resolvedPhotos.forEach((ph,i)=>proj.photos.unshift({id:'fp-'+Date.now()+i,src:ph.dataUrl,caption:`Field photo — ${entry.date}`,stage:proj.phase||'Field',date:entry.date}));
+    fs.photos.forEach((ph,i)=>proj.photos.unshift({id:'fp-'+Date.now()+i,src:ph.dataUrl,caption:`Field photo — ${entry.date}`,stage:proj.phase||'Field',date:entry.date}));
     fs.photos=[]; fs.logText='';
-    saveState(); renderFieldMode(); bindFieldModeEvents();
+    // Clear thumb row manually since we're not re-rendering
+    const row = ov.querySelector('#field-thumbs-row'); if(row) row.innerHTML='';
+    showToast('Log submitted — ' + entry.date);
+    saveState();
   });
 
   // Punch add
