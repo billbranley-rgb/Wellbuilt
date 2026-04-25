@@ -2984,16 +2984,19 @@ function bindTakeoffModal() {
 
   // Sqft input → update Run button label live
   if (sqftInput && runBtn) {
-    sqftInput.oninput = () => {
+    const syncRunBtn = () => {
       const v = parseInt(sqftInput.value) || 0;
       if (v > 0) {
         runBtn.disabled = false;
-        runBtn.textContent = '⚡ Run AI Takeoff — ' + v.toLocaleString() + ' SF';
+        runBtn.textContent = '\u26a1 Run AI Takeoff — ' + v.toLocaleString() + ' SF';
       } else {
         runBtn.disabled = true;
-        runBtn.textContent = '⚡ Run AI Takeoff';
+        runBtn.textContent = '\u26a1 Run AI Takeoff';
       }
     };
+    sqftInput.oninput = syncRunBtn;
+    // Fire immediately on bind — catches pre-filled values from defaults.sqft
+    syncRunBtn();
   }
 
   // Measure SF button
