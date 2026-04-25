@@ -2310,28 +2310,41 @@ async function _oai(messages, max_tokens) {
   if (!activeKey || !activeKey.startsWith('sk-')) {
     throw new Error('OpenAI key not configured — check Settings');
   }
+
+  // Detect vision messages (any content part is an array containing image_url)
+  // response_format:json_object is INCOMPATIBLE with vision — must omit it for image inputs
+  const hasVision = messages.some(m => Array.isArray(m.content) && m.content.some(p => p.type === 'image_url'));
+
+  const body = { model: 'gpt-4o', messages, max_tokens };
+  if (!hasVision) body.response_format = { type: 'json_object' };
+  // gpt-4o-mini doesn't support vision reliably at high detail — use gpt-4o for image inputs
+
   let res;
   try {
     res = await _realFetch(OPENAI_URL, {
-      method:'POST',
-      headers:{'Content-Type':'application/json','Authorization':'Bearer '+activeKey},
-      body: JSON.stringify({model:'gpt-4o-mini', messages, max_tokens, response_format:{type:'json_object'}})
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json', 'Authorization': 'Bearer ' + activeKey },
+      body: JSON.stringify(body)
     });
   } catch(netErr) {
-    // Network-level failure — on GitHub Pages this is almost always an ad blocker
-    if (IS_GITHUB_PAGES) {
-      throw new _AiBlockedError();
-    }
+    if (IS_GITHUB_PAGES) throw new _AiBlockedError();
     throw new Error('Network error — check your connection and try again.');
   }
   const d = await res.json();
   if (!res.ok) {
-    const msg = (d.error&&d.error.message) || 'OpenAI error ' + res.status;
+    const msg = (d.error && d.error.message) || 'OpenAI error ' + res.status;
     if (res.status === 401) throw new Error('OpenAI key invalid or expired');
     if (res.status === 429) throw new Error('OpenAI quota reached — try again in a moment');
     throw new Error(msg);
   }
-  return JSON.parse(d.choices[0].message.content);
+  const raw = d.choices[0].message.content || '{}';
+  // For vision responses, extract JSON from markdown code blocks if present
+  if (hasVision) {
+    const match = raw.match(/```(?:json)?\s*([\s\S]*?)```/) || raw.match(/({[\s\S]*})/);
+    const jsonStr = match ? (match[1] || match[0]).trim() : raw.trim();
+    try { return JSON.parse(jsonStr); } catch(e) { throw new Error('AI returned unparseable response: ' + jsonStr.slice(0, 200)); }
+  }
+  return JSON.parse(raw);
 }
 
 // Special error class for ad-blocker blocks on GitHub Pages
@@ -2872,6 +2885,8 @@ async function runTakeoff() {
       throw new Error(data.error || ('HTTP ' + res.status));
     }
     data.generatedAt = new Date().toISOString();
+    // DEBUG — remove after confirming totals
+    console.log('[TAKEOFF RAW]', JSON.stringify(data).slice(0, 2000));
 
     if (takeoffCtx === 'wizard') {
       wizard.takeoff = data;
@@ -2883,7 +2898,9 @@ async function runTakeoff() {
         const toSqft = Number(document.getElementById('to-sqft')?.value || 0);
         if (toSqft > 0 && (!p.sqft || p.sqft === 0)) p.sqft = toSqft;
         // Rebuild the stored estimate from the fresh takeoff so grandTotal is correct
-        p.estimate = buildEstimate(p, data);
+        const est = buildEstimate(p, data);
+        console.log('[ESTIMATE BUILT]', JSON.stringify({ grandTotal: est.grandTotal, subtotal: est.subtotal, materials: est.materials, labor: est.labor }));
+        p.estimate = est;
         saveState();
       }
     }
