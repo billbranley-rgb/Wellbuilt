@@ -4458,7 +4458,7 @@ function renderFieldMode() {
           <div style="font-size:28px;">📸</div>
           <div style="font-size:13px;color:#94a3b8;margin-top:4px;">Tap to take / upload photos</div>
         </label>
-        ${fs.photos.length > 0 ? `<div style="display:flex;gap:8px;flex-wrap:wrap;margin-bottom:14px;">${fs.photos.map((ph,i)=>`<div style="position:relative;"><img src="${ph.dataUrl}" style="width:80px;height:80px;object-fit:cover;border-radius:8px;border:1px solid rgba(255,255,255,0.1);"><button data-remove-photo="${i}" style="position:absolute;top:-6px;right:-6px;background:#ef4444;color:#fff;border:none;border-radius:50%;width:20px;height:20px;font-size:12px;cursor:pointer;display:flex;align-items:center;justify-content:center;">×</button></div>`).join('')}</div>` : ''}
+        ${fs.photos.length > 0 ? `<div id="field-thumbs-row" style="display:flex;gap:8px;flex-wrap:wrap;margin-bottom:14px;">${fs.photos.map((ph,i)=>`<div style="position:relative;"><div id="field-thumb-${i}" data-photo-idx="${i}" style="width:80px;height:80px;border-radius:8px;border:1px solid rgba(255,255,255,0.1);background:#1e293b center/cover no-repeat;display:flex;align-items:center;justify-content:center;font-size:22px;">📸</div><button data-remove-photo="${i}" style="position:absolute;top:-6px;right:-6px;background:#ef4444;color:#fff;border:none;border-radius:50%;width:20px;height:20px;font-size:12px;cursor:pointer;display:flex;align-items:center;justify-content:center;">×</button></div>`).join('')}</div>` : ''}
         <div style="font-weight:700;font-size:13px;color:#f97316;text-transform:uppercase;letter-spacing:.05em;margin-bottom:8px;">📝 Daily Log</div>
         <textarea id="field-log-text" placeholder="What was done today? Any issues, materials used, crew on site..." style="width:100%;box-sizing:border-box;background:#1e293b;border:1px solid rgba(255,255,255,0.1);border-radius:10px;padding:12px;color:#fff;font-size:15px;min-height:100px;resize:none;">${fs.logText||''}</textarea>
         <button id="field-submit-btn" style="width:100%;margin-top:12px;background:#f97316;color:#fff;border:none;border-radius:12px;padding:16px;font-size:16px;font-weight:800;cursor:pointer;">✓ Submit Log</button>
@@ -4631,6 +4631,17 @@ function bindFieldModeEvents() {
         }).catch(()=>{ fs.gpsLabel = `${pos.coords.latitude.toFixed(4)}, ${pos.coords.longitude.toFixed(4)}`; renderFieldMode(); bindFieldModeEvents(); });
     }, ()=>alert('Could not get location'));
   });
+
+  // Inject photo thumbnails via JS background-image (bypasses iframe data: URI sandbox restriction on <img> tags)
+  if (fs.photos && fs.photos.length) {
+    fs.photos.forEach((ph, i) => {
+      const thumb = ov.querySelector('#field-thumb-' + i);
+      if (thumb && ph.dataUrl) {
+        thumb.style.backgroundImage = 'url(' + ph.dataUrl + ')';
+        thumb.textContent = '';
+      }
+    });
+  }
 
   // Photo input — resize first (raw camera photos are too large for innerHTML), then buffer all before re-render
   ov.querySelector('#field-photo-input')?.addEventListener('change', async e => {
