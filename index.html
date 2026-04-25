@@ -2374,10 +2374,22 @@ async function _handleApi(ep, opts) {
     var files=gfs('files'), scope=gf('scope'), pt=gf('project_type'), sq=gf('sqft'), tier=gf('tier'), st=gf('state');
     var txt='';
     for (var fi=0;fi<Math.min(files.length,3);fi++) txt+=await pdfText(files[fi]);
+    var tierRates = {budget:'$225-250/sqft all-in',mid:'$285-320/sqft all-in',premium:'$350-425/sqft all-in'};
+    var tierRate = tierRates[tier] || tierRates.mid;
+    var targetTotal = Math.round(parseInt(sq||100) * (tier==='budget'?237:tier==='premium'?385:300));
     return _oai([
-      {role:'system',content:'Expert NY/NJ GC estimator. Return valid JSON only.'},
-      {role:'user',content:'Detailed takeoff for a '+pt+', '+sq+' sq ft, '+tier+' tier, '+st+'. Scope: '+scope+'.'+(txt?'\nPlans: '+txt:'')+'\nReturn JSON: {materials:[{item,qty,unit,unitPrice,total}],labor:[{trade,hours,rate,total}],totals:{materials,labor,subtotal,tax,grand},summary:string}. Real 2025 NJ/NY pricing. 6-10 material items, 4-6 labor trades.'}
-    ], 1400);
+      {role:'system',content:[
+        'You are a senior licensed general contractor estimator for the Northeast US (NY/NJ/CT/MA) with 20 years experience.',
+        'You produce ACCURATE 2025 market-rate estimates. CRITICAL RATE ANCHORS you must follow:',
+        'LABOR: Carpenter/framer $85-110/hr | Plumber $110-140/hr | Electrician $110-135/hr | Tile setter $90-120/hr | Painter $70-90/hr | General laborer $65-80/hr | HVAC $100-130/hr.',
+        'MATERIALS: Wall tile installed $18-28/SF | Floor tile installed $20-32/SF | LVP flooring $8-14/SF | Hardwood $16-24/SF | Drywall hang+finish $4-6/SF | Cabinet linear foot $350-600/LF (mid) $600-1200/LF (premium) | Quartz countertop $80-140/SF installed | Paint walls $3-5/SF | Insulation $2-4/SF.',
+        'FIXTURES: Standard toilet $400-700 supply+install | Vanity+faucet mid $800-1500 | Vanity+faucet premium $2000-4500 | Shower valve+trim $600-1200 | Recessed light $180-280 each installed.',
+        'A ' + tier + '-tier ' + pt + ' in ' + st + ' at ' + sq + ' sqft should total approximately ' + tierRate + ', so target grand total near $' + targetTotal.toLocaleString() + '.',
+        'Do NOT underestimate. Northeast labor and material costs are among the highest in the US.',
+        'Return valid JSON only. No markdown, no explanation outside JSON.'
+      ].join(' ')},
+      {role:'user',content:'Generate a detailed line-item takeoff for: '+pt+', '+sq+' sq ft, '+tier+' finish tier, '+st+'. Scope: '+scope+'.'+(txt?'\nPlans/docs: '+txt:'')+'\nReturn JSON with these exact fields: {materials:[{item,qty,unit,unitPrice,total}],labor:[{trade,hours,rate,total}],totals:{materials,labor,subtotal,tax,grand},summary:string}. Include 8-12 material line items and 5-7 labor trades. All dollar amounts in full dollars (not thousands). Grand total must be near $'+targetTotal.toLocaleString()+' for a '+tier+'-tier job of this size in '+st+'.'}
+    ], 2000);
   }
   if (ep==='/api/schedule') {
     var b={}; try{b=JSON.parse((opts&&opts.body)||'{}');}catch(e){}
