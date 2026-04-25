@@ -999,13 +999,43 @@
 
 /* ── FIELD MODE ── */
 .content-field { padding: 0 !important; max-width: 100% !important; }
+
+/* Hide app chrome when in field mode */
+.content-field ~ * .topbar,
+.content-field .topbar { display: none; }
+
+/* Full-screen field shell */
 .field-shell {
-  min-height: 100dvh;
+  height: 100dvh;
   background: #0a0f1e;
   color: #fff;
   font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
   display: flex; flex-direction: column;
   max-width: 540px; margin: 0 auto;
+  overflow: hidden;
+  position: relative;
+}
+
+/* Scrollable content above bottom nav */
+.field-body-has-bottom-nav {
+  flex: 1;
+  overflow-y: auto;
+  -webkit-overflow-scrolling: touch;
+  padding-bottom: 8px;
+}
+
+/* Bottom nav bar — 5 field action buttons */
+.fm-bottom-nav {
+  display: flex;
+  background: #111827;
+  border-top: 1px solid rgba(255,255,255,0.1);
+  padding: 6px 0 max(6px, env(safe-area-inset-bottom));
+  flex-shrink: 0;
+  z-index: 50;
+}
+.fm-bottom-nav .fm-tab-btn {
+  font-size: 10px;
+  padding: 6px 2px;
 }
 .field-topbar {
   background: #111827;
@@ -1879,14 +1909,15 @@ function render() {
   if (isPortal) {
     app.innerHTML = renderPortal();
   } else {
+    const isField = currentView.name === 'field';
     app.innerHTML = `
       <div class="app">
         ${renderSidebar()}
         <div class="main">
-          ${renderTopbar()}
-          <div class="content${currentView.name === 'field' ? ' content-field' : ''}">${renderPage()}</div>
+          ${isField ? '' : renderTopbar()}
+          <div class="content${isField ? ' content-field' : ''}">${renderPage()}</div>
         </div>
-        ${renderMobileNav()}
+        ${isField ? '' : renderMobileNav()}
       </div>
       ${state.modal ? renderModal() : ''}
       ${state.toast ? `<div class="toast">${state.toast}</div>` : ''}
@@ -4543,25 +4574,27 @@ function renderFieldMode() {
 
   return `
     <div class="field-shell">
+      <!-- Header: brand + job selector -->
       <div class="field-topbar">
         <div class="field-topbar-title">Kunst<span>ruction</span>1 <span style="font-weight:400;font-size:0.8rem;color:#94a3b8;">· Field OS</span></div>
       </div>
       ${jobSelector}
-      <!-- 5-tab strip -->
-      <div class="fm-tab-strip">
-        ${tabBtn('log',   '📋', 'Daily Log',  0)}
-        ${tabBtn('punch', '🔧', 'Punch',      openPunch)}
-        ${tabBtn('rfi',   '❓', 'RFIs',       openRfis)}
-        ${tabBtn('co',    '📝', 'C.O.',       pendingCOs)}
-        ${tabBtn('tasks', '✅', 'Tasks',      openTasks)}
-      </div>
-      <div class="field-body">
+      <!-- Scrollable body -->
+      <div class="field-body field-body-has-bottom-nav">
         ${installBanner}
         ${fieldState.tab === 'log'   ? renderLogTab()   : ''}
         ${fieldState.tab === 'punch' ? renderPunchTab() : ''}
         ${fieldState.tab === 'rfi'   ? renderRfiTab()   : ''}
         ${fieldState.tab === 'co'    ? renderCOTab()    : ''}
         ${fieldState.tab === 'tasks' ? renderTasksTab() : ''}
+      </div>
+      <!-- Bottom nav: all 5 field action tabs pinned to bottom -->
+      <div class="fm-bottom-nav">
+        ${tabBtn('log',   '📋', 'Daily Log',  0)}
+        ${tabBtn('punch', '🔧', 'Punch List', openPunch)}
+        ${tabBtn('rfi',   '❓', 'RFIs',       openRfis)}
+        ${tabBtn('co',    '📝', 'Change Order', pendingCOs)}
+        ${tabBtn('tasks', '✅', 'Tasks',      openTasks)}
       </div>
     </div>`;
 }
