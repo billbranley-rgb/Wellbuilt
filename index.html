@@ -1911,6 +1911,11 @@ function generateScopeNarrative(p) {
 let currentView = { name: 'home', params: {} };
 
 function navigate(name, params = {}) {
+  // Remove field overlay whenever leaving field mode
+  if (name !== 'field') {
+    const ov = document.getElementById('field-overlay');
+    if (ov) ov.remove();
+  }
   currentView = { name, params };
   window.scrollTo(0, 0);
   render();
@@ -4342,587 +4347,335 @@ ${state.settings.nyHic} · ${state.settings.njHic}`;
 // ---------- SETTINGS ----------
 // ---------- FIELD MODE ----------
 function renderFieldMode() {
+  // Remove any stale overlay
+  const old = document.getElementById('field-overlay');
+  if (old) old.remove();
+
   const activeJobs = state.projects.filter(p => p.status === 'active');
-  const fieldState = window.__fieldState || {
-    jobId: activeJobs.length === 1 ? activeJobs[0].id : '',
-    photos: [],
-    logText: '',
-    gps: null,
-    gpsLabel: '',
-    submitted: false,
-    tab: 'log',  // log | punch | rfi
-  };
-  window.__fieldState = fieldState;
-  if (!fieldState.tab) fieldState.tab = 'log';
+  if (!window.__fieldState) window.__fieldState = {};
+  const fs = window.__fieldState;
+  if (!fs.tab) fs.tab = 'log';
+  if (!fs.jobId && activeJobs.length === 1) fs.jobId = activeJobs[0].id;
+  if (!fs.photos) fs.photos = [];
+  if (!fs.logText) fs.logText = '';
 
-  const selectedJob = state.projects.find(p => p.id === fieldState.jobId);
-  const p = selectedJob; // shorthand for project
+  const proj = state.projects.find(p => p.id === fs.jobId) || null;
+  const punch      = proj && proj.punchList   ? proj.punchList   : [];
+  const rfis       = proj && proj.rfis        ? proj.rfis        : [];
+  const cos        = proj && proj.changeOrders? proj.changeOrders: [];
+  const tasks      = proj && proj.tasks       ? proj.tasks       : [];
+  const openPunch  = punch.filter(i=>!i.done).length;
+  const openRfis   = rfis.filter(r=>r.status==='open').length;
+  const pendingCOs = cos.filter(c=>c.status==='pending').length;
+  const openTasks  = tasks.filter(t=>!t.done).length;
 
-  // PWA install prompt banner
-  const installBanner = window.__deferredInstall ? `
-    <div class="install-banner" id="install-banner">
-      <div class="install-banner-icon">📲</div>
-      <div class="install-banner-text">
-        <strong>Add to Home Screen</strong>
-        <span>Install Kunstruction1 as an app — works offline too</span>
-      </div>
-      <button class="install-banner-btn" id="install-btn">Install</button>
-    </div>` : '';
-
-  if (fieldState.submitted) {
-    return `
-      <div class="field-shell">
-        <div class="field-topbar">
-          <div class="field-topbar-title">Kunst<span>ruction</span>1</div>
-          <div style="font-size:0.8rem;color:#94a3b8;">Field Mode</div>
-        </div>
-        <div class="field-body">
-          ${installBanner}
-          <div class="field-success">
-            <div class="check">✅</div>
-            <h3>Log Submitted!</h3>
-            <p>Photos and daily log saved to ${selectedJob ? selectedJob.name : 'project'} and visible in the client portal.</p>
-          </div>
-          <button class="field-back-btn" id="field-reset-btn">+ Submit Another Log</button>
-          ${selectedJob ? `<button class="field-back-btn" data-nav="project" data-nav-params='{"id":"${selectedJob.id}"}' style="color:#f97316;border-color:rgba(249,115,22,0.3);">View Project →</button>` : ''}
-        </div>
-      </div>`;
+  function badge(n) {
+    return n > 0 ? `<span style="position:absolute;top:4px;right:6px;background:#f97316;color:#fff;border-radius:10px;font-size:10px;font-weight:800;padding:1px 5px;">${n}</span>` : '';
+  }
+  function navBtn(key, emoji, label, count) {
+    const active = fs.tab === key;
+    return `<button data-field-tab="${key}" style="flex:1;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:2px;padding:10px 2px 8px;border:none;border-radius:10px;cursor:pointer;min-height:64px;position:relative;background:${active?'rgba(249,115,22,0.2)':'transparent'};color:${active?'#f97316':'#94a3b8'};">
+      <span style="font-size:26px;line-height:1;">${emoji}</span>
+      <span style="font-size:10px;font-weight:700;white-space:nowrap;">${label}</span>
+      ${badge(count)}
+    </button>`;
   }
 
-  const photoThumbs = fieldState.photos.length > 0 ? `
-    <div class="field-photo-preview">
-      ${fieldState.photos.map((p, i) => `
-        <div class="field-photo-thumb">
-          <img src="${p.dataUrl}" alt="photo ${i+1}" />
-          <button class="remove-btn" data-remove-photo="${i}">×</button>
-        </div>`).join('')}
-    </div>` : '';
+  // --- TAB CONTENT ---
+  function tabContent() {
+    const noJob = `<div style="text-align:center;color:#64748b;padding:48px 20px;font-size:15px;">Select a job above to get started.</div>`;
+    if (!proj) return noJob;
 
-  const punch = (p && p.punchList) ? p.punchList : [];
-  const openPunch = punch.filter(i => !i.done).length;
-  const rfis = (p && p.rfis) ? p.rfis : [];
-  const openRfis = rfis.filter(r => r.status === 'open').length;
-  const cos = (p && p.changeOrders) ? p.changeOrders : [];
-  const pendingCOs = cos.filter(c => c.status === 'pending').length;
-  const tasks = (p && p.tasks) ? p.tasks : [];
-  const openTasks = tasks.filter(t => !t.done).length;
+    if (fs.tab === 'log') {
+      const logs = proj.logs || [];
+      return `
+        <div style="font-weight:700;font-size:13px;color:#f97316;text-transform:uppercase;letter-spacing:.05em;margin-bottom:10px;">📷 Photos</div>
+        <label style="display:block;background:#1e293b;border:2px dashed rgba(249,115,22,0.4);border-radius:12px;padding:18px;text-align:center;cursor:pointer;margin-bottom:14px;">
+          <input id="field-photo-input" type="file" accept="image/*" multiple capture="environment" style="display:none;">
+          <div style="font-size:28px;">📸</div>
+          <div style="font-size:13px;color:#94a3b8;margin-top:4px;">Tap to take / upload photos</div>
+        </label>
+        ${fs.photos.length > 0 ? `<div style="display:flex;gap:8px;flex-wrap:wrap;margin-bottom:14px;">${fs.photos.map((ph,i)=>`<div style="position:relative;"><img src="${ph.dataUrl}" style="width:80px;height:80px;object-fit:cover;border-radius:8px;border:1px solid rgba(255,255,255,0.1);"><button data-remove-photo="${i}" style="position:absolute;top:-6px;right:-6px;background:#ef4444;color:#fff;border:none;border-radius:50%;width:20px;height:20px;font-size:12px;cursor:pointer;display:flex;align-items:center;justify-content:center;">×</button></div>`).join('')}</div>` : ''}
+        <div style="font-weight:700;font-size:13px;color:#f97316;text-transform:uppercase;letter-spacing:.05em;margin-bottom:8px;">📝 Daily Log</div>
+        <textarea id="field-log-text" placeholder="What was done today? Any issues, materials used, crew on site..." style="width:100%;box-sizing:border-box;background:#1e293b;border:1px solid rgba(255,255,255,0.1);border-radius:10px;padding:12px;color:#fff;font-size:15px;min-height:100px;resize:none;">${fs.logText||''}</textarea>
+        <button id="field-submit-btn" style="width:100%;margin-top:12px;background:#f97316;color:#fff;border:none;border-radius:12px;padding:16px;font-size:16px;font-weight:800;cursor:pointer;">✓ Submit Log</button>
+        ${logs.length > 0 ? `<div style="margin-top:20px;"><div style="font-size:12px;color:#64748b;font-weight:700;text-transform:uppercase;letter-spacing:.05em;margin-bottom:8px;">Recent Logs</div>${logs.slice(0,3).map(l=>`<div style="background:#1e293b;border-radius:10px;padding:12px;margin-bottom:8px;"><div style="font-size:12px;color:#f97316;font-weight:700;">${l.date}</div><div style="font-size:13px;color:#cbd5e1;margin-top:4px;">${l.text||l.notes||''}</div></div>`).join('')}</div>` : ''}`;
+    }
 
-  // Job selector (shared across all tabs)
-  const jobSelector = `
-    <div class="fm-job-bar">
-      <select class="field-select" id="field-job-select" style="flex:1;">
-        <option value="">— Select active job —</option>
-        ${activeJobs.map(j => `<option value="${j.id}" ${j.id === fieldState.jobId ? 'selected' : ''}>${j.name}${j.client?' · '+j.client:''}</option>`).join('')}
-        ${activeJobs.length === 0 ? '<option disabled>No active jobs</option>' : ''}
-      </select>
-      <button class="field-gps-chip ${fieldState.gps?'':'searching'}" id="gps-btn" style="flex-shrink:0;">
-        📍 ${fieldState.gps ? fieldState.gpsLabel||'On-site' : 'Check in'}
-      </button>
-    </div>`;
-
-  const noJob = '<div class="field-empty" style="margin-top:24px;">Select a job above to get started.</div>';
-
-  // Tab button helper
-  const tabBtn = (key, emoji, label, badge) => `
-    <button data-field-tab="${key}" style="flex:1;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:3px;padding:10px 2px;border:none;border-radius:10px;cursor:pointer;min-height:62px;position:relative;background:${fieldState.tab===key?'rgba(249,115,22,0.18)':'transparent'};color:${fieldState.tab===key?'#f97316':'#94a3b8'};outline:${fieldState.tab===key?'2px solid rgba(249,115,22,0.5)':'none'};">
-      <span style="font-size:24px;line-height:1;">${emoji}</span>
-      <span style="font-size:10px;font-weight:700;white-space:nowrap;">${label}</span>
-      ${badge > 0 ? `<span style="position:absolute;top:6px;right:8px;background:#f97316;color:#fff;border-radius:9px;font-size:10px;font-weight:800;padding:1px 5px;min-width:16px;text-align:center;">${badge}</span>` : ''}
-    </button>`;
-
-  // ── TAB: DAILY LOG ──────────────────────────────────────────────
-  const renderLogTab = () => !p ? noJob : `
-    <div>
-      <div class="field-section-label" style="margin-bottom:6px;">Site Photos</div>
-      <div class="field-camera-zone" id="camera-drop-zone">
-        <div class="field-camera-icon">📸</div>
-        <div class="field-camera-label">
-          <strong>Tap to photograph the job</strong>
-          Camera opens on mobile · syncs to client portal
-        </div>
-        <input type="file" id="field-photo-input" accept="image/*" multiple capture="environment"
-          style="position:absolute;inset:0;opacity:0;cursor:pointer;" />
-      </div>
-      ${photoThumbs}
-    </div>
-    <div class="field-log-zone">
-      <div class="field-section-label">Daily Field Log</div>
-      <textarea class="field-log-textarea" id="field-log-text"
-        placeholder="Trades on site, work completed, issues, materials received..."
-      >${fieldState.logText}</textarea>
-      <button class="field-voice-btn" id="voice-btn">🎙️ <span id="voice-btn-label">Tap to dictate (voice)</span></button>
-    </div>
-    <button class="field-submit-btn" id="field-submit-btn" ${!fieldState.jobId?'disabled':''}>
-      ${!fieldState.jobId ? 'Select a job to submit' : '✓ Submit Log' + (fieldState.photos.length > 0 ? ` + ${fieldState.photos.length} photo${fieldState.photos.length>1?'s':''}` : '')}
-    </button>
-    <!-- Recent logs -->
-    ${(p.logs||[]).length > 0 ? `
-    <div style="margin-top:20px;">
-      <div class="field-section-label">Recent logs</div>
-      ${(p.logs||[]).slice(0,3).map(l=>`
-        <div style="border:1px solid var(--border);border-radius:10px;padding:12px;margin-bottom:8px;background:var(--surface-2);">
-          <div style="display:flex;justify-content:space-between;margin-bottom:4px;">
-            <span style="font-size:12px;font-weight:700;color:var(--text-muted);">${l.date}</span>
-            ${l.photos&&l.photos.length>0?`<span style="font-size:11px;color:var(--orange);">📸 ${l.photos.length} photo${l.photos.length>1?'s':''}</span>`:''}
-          </div>
-          <div style="font-size:13px;color:var(--text);">${esc(l.text).slice(0,160)}${l.text.length>160?'…':''}</div>
-        </div>`).join('')}
-    </div>` : ''}`;
-
-  // ── TAB: PUNCH LIST ─────────────────────────────────────────────
-  const renderPunchTab = () => !p ? noJob : `
-    <div style="display:flex;gap:8px;margin-bottom:14px;">
-      <input id="punch-new-input" type="text" placeholder="Describe punch item..." style="flex:1;background:var(--surface-2);border:1px solid var(--border);border-radius:8px;padding:11px 12px;color:var(--text);font-size:14px;outline:none;" />
-      <select id="punch-trade-sel" style="background:var(--surface-2);border:1px solid var(--border);border-radius:8px;padding:11px 8px;color:var(--text);font-size:13px;">
-        <option>GC</option><option>Elec</option><option>Plumb</option>
-        <option>HVAC</option><option>Tile</option><option>Paint</option>
-        <option>Mill</option><option>Other</option>
-      </select>
-      <button id="punch-add-btn" style="background:var(--orange);color:#fff;border:none;border-radius:8px;padding:11px 15px;font-weight:800;cursor:pointer;font-size:18px;flex-shrink:0;">+</button>
-    </div>
-    <div style="font-size:12px;color:var(--text-muted);margin-bottom:10px;">${punch.length} item${punch.length!==1?'s':''} · ${openPunch} open · ${punch.length-openPunch} complete · <em style="color:#94a3b8;">Visible to client in portal</em></div>
-    ${punch.length === 0 ? '<div class="field-empty">No punch items yet.</div>' : ''}
-    ${punch.map((item,idx) => `
-      <div style="display:flex;align-items:flex-start;gap:10px;padding:12px;border-radius:10px;background:var(--surface-2);border:1px solid var(--border);margin-bottom:8px;">
-        <button data-punch-toggle="${idx}" style="background:${item.done?'#22c55e':'transparent'};border:2px solid ${item.done?'#22c55e':'var(--border)'};border-radius:50%;width:28px;height:28px;flex-shrink:0;cursor:pointer;font-size:14px;display:flex;align-items:center;justify-content:center;color:#fff;margin-top:1px;">${item.done?'✓':''}</button>
-        <div style="flex:1;">
-          <div style="font-size:14px;font-weight:600;color:var(--text);${item.done?'text-decoration:line-through;opacity:0.5;':''}">${esc(item.text)}</div>
-          <div style="font-size:11.5px;color:var(--text-muted);margin-top:3px;">🔧 ${item.trade} · ${item.date}</div>
-        </div>
-        <button data-punch-del="${idx}" style="background:transparent;border:none;color:var(--text-dim);cursor:pointer;font-size:20px;padding:0 2px;line-height:1;">×</button>
-      </div>`).join('')}`;
-
-  // ── TAB: RFIs ───────────────────────────────────────────────────
-  const renderRfiTab = () => !p ? noJob : `
-    <div style="background:rgba(249,115,22,0.06);border:1px solid rgba(249,115,22,0.2);border-radius:12px;padding:14px;margin-bottom:16px;">
-      <div style="font-size:12px;font-weight:700;text-transform:uppercase;letter-spacing:0.05em;color:var(--orange);margin-bottom:10px;">New RFI</div>
-      <input id="rfi-subject" type="text" placeholder="Subject / question" style="width:100%;background:var(--surface);border:1px solid var(--border);border-radius:8px;padding:10px 12px;color:var(--text);font-size:14px;margin-bottom:8px;box-sizing:border-box;outline:none;" />
-      <textarea id="rfi-body" placeholder="Full description..." style="width:100%;background:var(--surface);border:1px solid var(--border);border-radius:8px;padding:10px 12px;color:var(--text);font-size:14px;min-height:72px;resize:vertical;box-sizing:border-box;outline:none;margin-bottom:8px;"></textarea>
-      <div style="display:flex;gap:8px;">
-        <select id="rfi-trade-sel" style="flex:1;background:var(--surface);border:1px solid var(--border);border-radius:8px;padding:10px;color:var(--text);font-size:13px;">
-          <option>GC</option><option>Architect</option><option>Engineer</option>
-          <option>Electrical</option><option>Plumbing</option><option>HVAC</option>
-          <option>Owner</option><option>Other</option>
-        </select>
-        <button id="rfi-submit-btn" style="background:var(--orange);color:#fff;border:none;border-radius:8px;padding:10px 18px;font-weight:700;cursor:pointer;font-size:14px;">Submit RFI</button>
-      </div>
-    </div>
-    <div style="font-size:12px;color:var(--text-muted);margin-bottom:10px;">${rfis.length} RFI${rfis.length!==1?'s':''} · ${openRfis} open · <em style="color:#94a3b8;">Visible to client in portal</em></div>
-    ${rfis.length === 0 ? '<div class="field-empty">No RFIs yet.</div>' : ''}
-    ${rfis.map((r,idx)=>`
-      <div style="border:1px solid var(--border);border-radius:10px;padding:13px;margin-bottom:10px;background:var(--surface-2);">
-        <div style="display:flex;justify-content:space-between;align-items:flex-start;gap:8px;margin-bottom:6px;">
-          <div style="font-size:14px;font-weight:700;color:var(--text);">#${rfis.length-idx} · ${esc(r.subject)}</div>
-          <span style="font-size:11px;font-weight:700;padding:3px 8px;border-radius:6px;background:${r.status==='open'?'rgba(249,115,22,0.15)':'rgba(34,197,94,0.15)'};color:${r.status==='open'?'#f97316':'#22c55e'};flex-shrink:0;white-space:nowrap;">${r.status==='open'?'🟠 OPEN':'✅ RESOLVED'}</span>
-        </div>
-        ${r.body?`<div style="font-size:13px;color:var(--text-muted);margin-bottom:8px;">${esc(r.body)}</div>`:''}
-        <div style="display:flex;justify-content:space-between;align-items:center;">
-          <div style="font-size:11.5px;color:var(--text-dim);">${r.trade} · ${r.date}</div>
-          ${r.status==='open'?`<button data-rfi-close="${idx}" style="background:transparent;border:1px solid var(--border);border-radius:6px;padding:5px 10px;font-size:12px;cursor:pointer;color:var(--text-muted);">Mark Resolved</button>`:''}
-        </div>
-      </div>`).join('')}`;
-
-  // ── TAB: CHANGE ORDERS ──────────────────────────────────────────
-  const renderCOTab = () => !p ? noJob : `
-    <button id="fm-add-co-btn" style="width:100%;background:var(--orange);color:#fff;border:none;border-radius:12px;padding:15px;font-size:16px;font-weight:800;cursor:pointer;margin-bottom:16px;display:flex;align-items:center;justify-content:center;gap:8px;">
-      ✚ New Change Order
-    </button>
-    <div style="font-size:12px;color:var(--text-muted);margin-bottom:12px;">${cos.length} change order${cos.length!==1?'s':''} · ${pendingCOs} pending client approval · <em style="color:#94a3b8;">Sent to client portal</em></div>
-    <!-- New CO form (hidden by default) -->
-    <div id="fm-co-form" style="display:none;background:rgba(249,115,22,0.06);border:1px solid rgba(249,115,22,0.25);border-radius:12px;padding:14px;margin-bottom:16px;">
-      <div style="font-size:12px;font-weight:700;text-transform:uppercase;letter-spacing:0.05em;color:var(--orange);margin-bottom:10px;">Change Order Details</div>
-      <input id="co-title" type="text" placeholder="Title / description of change" style="width:100%;background:var(--surface);border:1px solid var(--border);border-radius:8px;padding:10px 12px;color:var(--text);font-size:14px;margin-bottom:8px;box-sizing:border-box;outline:none;" />
-      <div style="display:flex;gap:8px;margin-bottom:8px;">
-        <input id="co-amount" type="number" placeholder="Amount ($)" style="flex:1;background:var(--surface);border:1px solid var(--border);border-radius:8px;padding:10px 12px;color:var(--text);font-size:14px;outline:none;" />
-        <select id="co-status" style="flex:1;background:var(--surface);border:1px solid var(--border);border-radius:8px;padding:10px;color:var(--text);font-size:13px;">
-          <option value="pending">Pending approval</option>
-          <option value="approved">Pre-approved</option>
-        </select>
-      </div>
-      <textarea id="co-desc" placeholder="Describe the scope change..." style="width:100%;background:var(--surface);border:1px solid var(--border);border-radius:8px;padding:10px 12px;color:var(--text);font-size:14px;min-height:72px;resize:vertical;box-sizing:border-box;outline:none;margin-bottom:8px;"></textarea>
-      <div style="display:flex;gap:8px;">
-        <button id="fm-co-cancel" style="flex:1;background:transparent;border:1px solid var(--border);border-radius:8px;padding:10px;color:var(--text-muted);cursor:pointer;font-size:14px;">Cancel</button>
-        <button id="fm-co-save" style="flex:2;background:var(--orange);color:#fff;border:none;border-radius:8px;padding:10px;font-weight:700;cursor:pointer;font-size:14px;">Save &amp; Send to Client</button>
-      </div>
-    </div>
-    ${cos.length === 0 ? '<div class="field-empty">No change orders yet. Tap the button above to create one.</div>' : ''}
-    ${cos.map((c,idx)=>`
-      <div style="border:${c.status==='pending'?'2px solid rgba(249,115,22,0.5)':'1px solid var(--border)'};border-radius:12px;padding:14px;margin-bottom:10px;background:var(--surface-2);">
-        <div style="display:flex;justify-content:space-between;align-items:flex-start;gap:8px;margin-bottom:6px;">
-          <div style="font-size:14px;font-weight:700;color:var(--text);">${esc(c.title)}</div>
-          <span style="font-size:11px;font-weight:800;padding:4px 9px;border-radius:6px;background:${c.status==='approved'?'rgba(34,197,94,0.15)':c.status==='pending'?'rgba(249,115,22,0.18)':'rgba(239,68,68,0.15)'};color:${c.status==='approved'?'#22c55e':c.status==='pending'?'#f97316':'#ef4444'};flex-shrink:0;white-space:nowrap;">${c.status.toUpperCase()}</span>
-        </div>
-        ${c.description?`<div style="font-size:13px;color:var(--text-muted);margin-bottom:8px;">${esc(c.description)}</div>`:''}
-        <div style="display:flex;justify-content:space-between;align-items:center;">
-          <div style="font-size:13px;font-weight:700;color:var(--text);">${fmtUsd(c.amount)}</div>
-          <div style="font-size:11.5px;color:var(--text-dim);">${c.date}</div>
-        </div>
-      </div>`).join('')}`;
-
-  // ── TAB: PM TASKS (shared with desktop PM view, same p.tasks array) ──
-  const renderTasksTab = () => !p ? noJob : `
-    <div>
-      <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:12px;">
-        <div style="font-size:13px;color:var(--text-muted);">${tasks.length} task${tasks.length!==1?'s':''} &middot; ${openTasks} open</div>
-        <button id="fm-task-add-btn" style="background:var(--orange);color:#fff;border:none;border-radius:8px;padding:8px 16px;font-size:13px;font-weight:700;cursor:pointer;">+ Add Task</button>
-      </div>
-      <div id="fm-task-form" style="display:none;flex-direction:column;gap:8px;background:rgba(249,115,22,0.06);border:1px solid rgba(249,115,22,0.25);border-radius:12px;padding:12px;margin-bottom:14px;">
-        <input id="fm-task-input" type="text" placeholder="Task description (what needs to be done?)" style="width:100%;background:var(--surface);border:1px solid var(--border);border-radius:8px;padding:10px 12px;color:var(--text);font-size:14px;box-sizing:border-box;outline:none;" />
-        <div style="display:flex;gap:8px;">
-          <select id="fm-task-trade" style="flex:1;background:var(--surface);border:1px solid var(--border);border-radius:8px;padding:9px 10px;color:var(--text);font-size:13px;">
-            <option value="GC">GC</option>
-            <option value="PM">PM</option>
-            <option value="Electric">Electric</option>
-            <option value="Plumbing">Plumbing</option>
-            <option value="HVAC">HVAC</option>
-            <option value="Framing">Framing</option>
-            <option value="Finish">Finish</option>
-            <option value="Owner">Owner</option>
+    if (fs.tab === 'punch') {
+      return `
+        <div style="display:flex;gap:8px;margin-bottom:14px;">
+          <select id="punch-trade-sel" style="background:#1e293b;border:1px solid rgba(255,255,255,0.1);border-radius:8px;padding:10px;color:#fff;font-size:13px;">
+            <option>GC</option><option>Electric</option><option>Plumbing</option><option>HVAC</option><option>Framing</option><option>Finish</option>
           </select>
-          <button id="fm-task-save" style="flex:2;background:var(--orange);color:#fff;border:none;border-radius:8px;padding:10px;font-weight:700;cursor:pointer;font-size:14px;">Save Task</button>
+          <input id="punch-new-input" type="text" placeholder="Add punch item..." style="flex:1;background:#1e293b;border:1px solid rgba(255,255,255,0.1);border-radius:8px;padding:10px 12px;color:#fff;font-size:14px;">
+          <button id="punch-add-btn" style="background:#f97316;color:#fff;border:none;border-radius:8px;padding:10px 16px;font-weight:800;font-size:20px;cursor:pointer;">+</button>
         </div>
-      </div>
-      ${tasks.length === 0 ? '<div class="field-empty">No tasks yet. Tap + Add Task above — tasks sync to the PM dashboard.</div>' : ''}
-      ${tasks.map((t) => `
-        <div style="display:flex;align-items:center;gap:10px;padding:11px 2px;border-bottom:1px solid rgba(255,255,255,0.05);">
-          <button class="pm-task-check ${t.done?'done':''}" data-task-toggle="${p.id}:${t.id}">${t.done?'✓':''}</button>
-          <div style="flex:1;">
-            <div style="font-size:14px;color:${t.done?'var(--text-muted)':'var(--text)'};text-decoration:${t.done?'line-through':'none'};">${esc(t.title||t.text||'')}</div>
-            <div style="font-size:11px;color:var(--text-muted);margin-top:2px;">${t.trade||'GC'}</div>
-          </div>
-        </div>`).join('')}
-    </div>`;
+        ${punch.length === 0 ? '<div style="text-align:center;color:#64748b;padding:32px;font-size:14px;border:1px dashed rgba(255,255,255,0.1);border-radius:10px;">No punch items yet.</div>' : ''}
+        ${punch.map((item,idx)=>`
+          <div style="display:flex;align-items:center;gap:10px;padding:12px 0;border-bottom:1px solid rgba(255,255,255,0.06);">
+            <button data-punch-toggle="${idx}" style="width:26px;height:26px;border-radius:50%;border:2px solid ${item.done?'#22c55e':'rgba(255,255,255,0.2)'};background:${item.done?'#22c55e':'transparent'};color:#fff;font-size:14px;cursor:pointer;flex-shrink:0;display:flex;align-items:center;justify-content:center;">${item.done?'✓':''}</button>
+            <div style="flex:1;">
+              <div style="font-size:14px;color:${item.done?'#64748b':'#fff'};text-decoration:${item.done?'line-through':'none'};">${item.text}</div>
+              <div style="font-size:11px;color:#64748b;">${item.trade} · ${item.date||''}</div>
+            </div>
+            <button data-punch-del="${idx}" style="background:transparent;border:none;color:#ef4444;font-size:20px;cursor:pointer;">×</button>
+          </div>`).join('')}`;
+    }
 
-  return `
-    <div style="display:flex;flex-direction:column;background:#0a0f1e;color:#fff;font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',sans-serif;max-width:540px;margin:0 auto;">
-      <!-- Header: brand + job selector -->
-      <div class="field-topbar">
-        <div class="field-topbar-title">Kunst<span>ruction</span>1 <span style="font-weight:400;font-size:0.8rem;color:#94a3b8;">· Field OS</span></div>
-      </div>
-      ${jobSelector}
-      <!-- Scrollable body -->
-      <div class="field-body" style="padding-bottom:16px;">
-        ${installBanner}
-        ${fieldState.tab === 'log'   ? renderLogTab()   : ''}
-        ${fieldState.tab === 'punch' ? renderPunchTab() : ''}
-        ${fieldState.tab === 'rfi'   ? renderRfiTab()   : ''}
-        ${fieldState.tab === 'co'    ? renderCOTab()    : ''}
-        ${fieldState.tab === 'tasks' ? renderTasksTab() : ''}
-      </div>
-      <!-- Bottom nav: all 5 field action tabs -->
-      <div style="display:flex;background:#0d1525;border-top:2px solid rgba(249,115,22,0.4);padding:6px 4px max(10px,env(safe-area-inset-bottom));gap:4px;">
-        ${tabBtn('log',   '📋', 'Daily Log',  0)}
-        ${tabBtn('punch', '🔧', 'Punch List', openPunch)}
-        ${tabBtn('rfi',   '❓', 'RFIs',       openRfis)}
-        ${tabBtn('co',    '📝', 'Change Order', pendingCOs)}
-        ${tabBtn('tasks', '✅', 'Tasks',      openTasks)}
-      </div>
-    </div>`;
+    if (fs.tab === 'rfi') {
+      return `
+        <div style="background:rgba(249,115,22,0.06);border:1px solid rgba(249,115,22,0.25);border-radius:12px;padding:14px;margin-bottom:16px;">
+          <div style="font-size:12px;font-weight:700;color:#f97316;text-transform:uppercase;letter-spacing:.05em;margin-bottom:10px;">New RFI</div>
+          <select id="rfi-trade-sel" style="width:100%;background:#1e293b;border:1px solid rgba(255,255,255,0.1);border-radius:8px;padding:9px;color:#fff;font-size:13px;margin-bottom:8px;">
+            <option>GC</option><option>Electric</option><option>Plumbing</option><option>HVAC</option><option>Framing</option>
+          </select>
+          <input id="rfi-subject" type="text" placeholder="Subject / question" style="width:100%;box-sizing:border-box;background:#1e293b;border:1px solid rgba(255,255,255,0.1);border-radius:8px;padding:10px 12px;color:#fff;font-size:14px;margin-bottom:8px;">
+          <textarea id="rfi-body" placeholder="Details..." style="width:100%;box-sizing:border-box;background:#1e293b;border:1px solid rgba(255,255,255,0.1);border-radius:8px;padding:10px 12px;color:#fff;font-size:14px;min-height:60px;resize:none;margin-bottom:8px;"></textarea>
+          <button id="rfi-submit-btn" style="width:100%;background:#f97316;color:#fff;border:none;border-radius:8px;padding:12px;font-weight:700;font-size:14px;cursor:pointer;">Submit RFI</button>
+        </div>
+        ${rfis.length === 0 ? '<div style="text-align:center;color:#64748b;padding:32px;font-size:14px;border:1px dashed rgba(255,255,255,0.1);border-radius:10px;">No RFIs yet.</div>' : ''}
+        ${rfis.map((r,idx)=>`
+          <div style="border:1px solid ${r.status==='open'?'rgba(249,115,22,0.4)':'rgba(255,255,255,0.08)'};border-radius:12px;padding:14px;margin-bottom:10px;background:#1e293b;">
+            <div style="display:flex;justify-content:space-between;align-items:flex-start;gap:8px;margin-bottom:6px;">
+              <div style="font-size:14px;font-weight:700;">${r.subject}</div>
+              <span style="font-size:11px;font-weight:800;padding:3px 8px;border-radius:6px;background:${r.status==='open'?'rgba(249,115,22,0.15)':'rgba(34,197,94,0.15)'};color:${r.status==='open'?'#f97316':'#22c55e'};white-space:nowrap;">${r.status==='open'?'OPEN':'RESOLVED'}</span>
+            </div>
+            <div style="font-size:12px;color:#64748b;">${r.trade} · ${r.date}</div>
+            ${r.status==='open'?`<button data-rfi-close="${idx}" style="margin-top:8px;background:transparent;border:1px solid rgba(255,255,255,0.15);border-radius:6px;padding:6px 12px;color:#94a3b8;font-size:12px;cursor:pointer;">Mark Resolved</button>`:''}
+          </div>`).join('')}`;
+    }
+
+    if (fs.tab === 'co') {
+      return `
+        <button id="fm-add-co-btn" style="width:100%;background:#f97316;color:#fff;border:none;border-radius:12px;padding:16px;font-size:16px;font-weight:800;cursor:pointer;margin-bottom:14px;">✚ New Change Order</button>
+        <div id="fm-co-form" style="display:none;background:rgba(249,115,22,0.06);border:1px solid rgba(249,115,22,0.25);border-radius:12px;padding:14px;margin-bottom:16px;">
+          <input id="co-title" type="text" placeholder="Description of change" style="width:100%;box-sizing:border-box;background:#1e293b;border:1px solid rgba(255,255,255,0.1);border-radius:8px;padding:10px 12px;color:#fff;font-size:14px;margin-bottom:8px;">
+          <div style="display:flex;gap:8px;margin-bottom:8px;">
+            <input id="co-amount" type="number" placeholder="Amount ($)" style="flex:1;background:#1e293b;border:1px solid rgba(255,255,255,0.1);border-radius:8px;padding:10px 12px;color:#fff;font-size:14px;">
+            <select id="co-status" style="flex:1;background:#1e293b;border:1px solid rgba(255,255,255,0.1);border-radius:8px;padding:10px;color:#fff;font-size:13px;">
+              <option value="pending">Pending</option><option value="approved">Approved</option>
+            </select>
+          </div>
+          <textarea id="co-desc" placeholder="Scope details..." style="width:100%;box-sizing:border-box;background:#1e293b;border:1px solid rgba(255,255,255,0.1);border-radius:8px;padding:10px 12px;color:#fff;font-size:14px;min-height:60px;resize:none;margin-bottom:8px;"></textarea>
+          <div style="display:flex;gap:8px;">
+            <button id="fm-co-cancel" style="flex:1;background:transparent;border:1px solid rgba(255,255,255,0.15);border-radius:8px;padding:10px;color:#94a3b8;cursor:pointer;">Cancel</button>
+            <button id="fm-co-save" style="flex:2;background:#f97316;color:#fff;border:none;border-radius:8px;padding:10px;font-weight:700;cursor:pointer;">Save & Send to Client</button>
+          </div>
+        </div>
+        ${cos.length === 0 ? '<div style="text-align:center;color:#64748b;padding:32px;font-size:14px;border:1px dashed rgba(255,255,255,0.1);border-radius:10px;">No change orders yet.</div>' : ''}
+        ${cos.map((c,idx)=>`
+          <div style="border:${c.status==='pending'?'2px solid rgba(249,115,22,0.5)':'1px solid rgba(255,255,255,0.08)'};border-radius:12px;padding:14px;margin-bottom:10px;background:#1e293b;">
+            <div style="display:flex;justify-content:space-between;align-items:flex-start;gap:8px;margin-bottom:6px;">
+              <div style="font-size:14px;font-weight:700;">${esc(c.title)}</div>
+              <span style="font-size:11px;font-weight:800;padding:3px 8px;border-radius:6px;background:${c.status==='approved'?'rgba(34,197,94,0.15)':'rgba(249,115,22,0.15)'};color:${c.status==='approved'?'#22c55e':'#f97316'};white-space:nowrap;">${c.status.toUpperCase()}</span>
+            </div>
+            <div style="font-size:14px;font-weight:700;color:#f97316;">${fmtUsd(c.amount)}</div>
+            <div style="font-size:11px;color:#64748b;margin-top:4px;">${c.date||''}</div>
+          </div>`).join('')}`;
+    }
+
+    if (fs.tab === 'tasks') {
+      return `
+        <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:12px;">
+          <div style="font-size:13px;color:#64748b;">${tasks.length} tasks · ${openTasks} open</div>
+          <button id="fm-task-add-btn" style="background:#f97316;color:#fff;border:none;border-radius:8px;padding:8px 16px;font-size:13px;font-weight:700;cursor:pointer;">+ Add Task</button>
+        </div>
+        <div id="fm-task-form" style="display:none;flex-direction:column;gap:8px;background:rgba(249,115,22,0.06);border:1px solid rgba(249,115,22,0.25);border-radius:12px;padding:12px;margin-bottom:14px;">
+          <input id="fm-task-input" type="text" placeholder="What needs to be done?" style="width:100%;box-sizing:border-box;background:#1e293b;border:1px solid rgba(255,255,255,0.1);border-radius:8px;padding:10px 12px;color:#fff;font-size:14px;">
+          <div style="display:flex;gap:8px;">
+            <select id="fm-task-trade" style="flex:1;background:#1e293b;border:1px solid rgba(255,255,255,0.1);border-radius:8px;padding:9px;color:#fff;font-size:13px;">
+              <option value="GC">GC</option><option value="PM">PM</option><option value="Electric">Electric</option><option value="Plumbing">Plumbing</option><option value="HVAC">HVAC</option><option value="Framing">Framing</option><option value="Finish">Finish</option>
+            </select>
+            <button id="fm-task-save" style="flex:2;background:#f97316;color:#fff;border:none;border-radius:8px;padding:10px;font-weight:700;cursor:pointer;">Save Task</button>
+          </div>
+        </div>
+        ${tasks.length === 0 ? '<div style="text-align:center;color:#64748b;padding:32px;font-size:14px;border:1px dashed rgba(255,255,255,0.1);border-radius:10px;">No tasks yet.</div>' : ''}
+        ${tasks.map((t)=>`
+          <div style="display:flex;align-items:center;gap:10px;padding:12px 0;border-bottom:1px solid rgba(255,255,255,0.06);">
+            <button class="pm-task-check ${t.done?'done':''}" data-task-toggle="${proj.id}:${t.id}" style="width:26px;height:26px;border-radius:50%;border:2px solid ${t.done?'#22c55e':'rgba(255,255,255,0.2)'};background:${t.done?'#22c55e':'transparent'};color:#fff;font-size:14px;cursor:pointer;flex-shrink:0;display:flex;align-items:center;justify-content:center;">${t.done?'✓':''}</button>
+            <div style="flex:1;">
+              <div style="font-size:14px;color:${t.done?'#64748b':'#fff'};text-decoration:${t.done?'line-through':'none'};">${esc(t.title||t.text||'')}</div>
+              <div style="font-size:11px;color:#64748b;">${t.trade||'GC'}</div>
+            </div>
+          </div>`).join('')}`;
+    }
+    return '';
+  }
+
+  const overlay = document.createElement('div');
+  overlay.id = 'field-overlay';
+  overlay.style.cssText = 'position:fixed;top:0;left:0;right:0;bottom:0;z-index:99999;background:#0a0f1e;color:#fff;font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",sans-serif;display:flex;flex-direction:column;overflow:hidden;';
+  overlay.innerHTML = `
+    <div style="background:#111827;padding:14px 16px;border-bottom:1px solid rgba(255,255,255,0.08);display:flex;align-items:center;justify-content:space-between;flex-shrink:0;">
+      <div style="font-size:18px;font-weight:900;">Kunst<span style="color:#f97316;">ruction</span>1 <span style="font-weight:400;font-size:12px;color:#94a3b8;">· Field OS</span></div>
+      <button id="field-exit-btn" style="background:transparent;border:1px solid rgba(255,255,255,0.2);border-radius:8px;padding:6px 14px;color:#94a3b8;font-size:13px;cursor:pointer;">✕ Exit</button>
+    </div>
+    <div style="padding:10px 14px;background:#0d1525;border-bottom:1px solid rgba(255,255,255,0.06);display:flex;gap:8px;flex-shrink:0;">
+      <select id="field-job-select" style="flex:1;background:#1e293b;border:1px solid rgba(255,255,255,0.15);border-radius:8px;padding:10px 12px;color:#fff;font-size:14px;font-weight:600;">
+        <option value="">— Select Job —</option>
+        ${activeJobs.map(j=>`<option value="${j.id}" ${j.id===fs.jobId?'selected':''}>${j.name}${j.client?' · '+j.client:''}</option>`).join('')}
+      </select>
+      <button id="gps-btn" style="background:rgba(249,115,22,0.12);border:1px solid rgba(249,115,22,0.35);border-radius:8px;padding:10px 14px;color:#f97316;font-size:13px;font-weight:700;cursor:pointer;white-space:nowrap;">📍 ${fs.gps?(fs.gpsLabel||'On-site'):'Check In'}</button>
+    </div>
+    <div id="field-tab-body" style="flex:1;overflow-y:auto;-webkit-overflow-scrolling:touch;padding:16px;">
+      ${tabContent()}
+    </div>
+    <div style="display:flex;background:#111827;border-top:3px solid #f97316;padding:6px 4px;flex-shrink:0;">
+      ${navBtn('log',   '📋', 'Daily Log',   0)}
+      ${navBtn('punch', '🔧', 'Punch List',  openPunch)}
+      ${navBtn('rfi',   '❓', 'RFIs',        openRfis)}
+      ${navBtn('co',    '📝', 'Change Order',pendingCOs)}
+      ${navBtn('tasks', '✅', 'Tasks',       openTasks)}
+    </div>
+  `;
+  document.body.appendChild(overlay);
+  return '';
 }
 
 function bindFieldModeEvents() {
-  // GPS
-  const gpsBtn = document.getElementById('gps-btn');
-  if (gpsBtn) {
-    gpsBtn.addEventListener('click', () => {
-      if (!navigator.geolocation) { alert('GPS not available on this device'); return; }
-      gpsBtn.textContent = '⏳ Locating...';
-      gpsBtn.classList.add('searching');
-      navigator.geolocation.getCurrentPosition(pos => {
-        window.__fieldState.gps = { lat: pos.coords.latitude, lng: pos.coords.longitude };
-        fetch(`https://nominatim.openstreetmap.org/reverse?lat=${pos.coords.latitude}&lon=${pos.coords.longitude}&format=json`)
-          .then(r => r.json())
-          .then(d => {
-            const addr = d.address || {};
-            window.__fieldState.gpsLabel = [addr.road, addr.city || addr.town || addr.village, addr.state].filter(Boolean).join(', ');
-            render();
-          })
-          .catch(() => { window.__fieldState.gpsLabel = `${pos.coords.latitude.toFixed(4)}, ${pos.coords.longitude.toFixed(4)}`; render(); });
-      }, () => { alert('Could not get location. Check browser permissions.'); gpsBtn.classList.remove('searching'); });
-    });
-  }
+  const ov = document.getElementById('field-overlay');
+  if (!ov) return;
+  const fs = window.__fieldState;
 
-  // Job selector
-  const jobSel = document.getElementById('field-job-select');
-  if (jobSel) {
-    jobSel.addEventListener('change', e => {
-      window.__fieldState.jobId = e.target.value;
-      render();
+  // Exit
+  ov.querySelector('#field-exit-btn')?.addEventListener('click', () => navigate('home'));
+
+  // Tab switching
+  ov.querySelectorAll('[data-field-tab]').forEach(btn => {
+    btn.addEventListener('click', e => {
+      fs.tab = e.currentTarget.dataset.fieldTab;
+      renderFieldMode(); bindFieldModeEvents();
     });
-  }
+  });
+
+  // Job select
+  ov.querySelector('#field-job-select')?.addEventListener('change', e => {
+    fs.jobId = e.target.value; fs.photos = []; fs.logText = '';
+    renderFieldMode(); bindFieldModeEvents();
+  });
+
+  // GPS
+  ov.querySelector('#gps-btn')?.addEventListener('click', () => {
+    if (!navigator.geolocation) { alert('GPS not available'); return; }
+    navigator.geolocation.getCurrentPosition(pos => {
+      fs.gps = { lat: pos.coords.latitude, lng: pos.coords.longitude };
+      fetch(`https://nominatim.openstreetmap.org/reverse?lat=${pos.coords.latitude}&lon=${pos.coords.longitude}&format=json`)
+        .then(r=>r.json()).then(d=>{
+          const a = d.address||{};
+          fs.gpsLabel = [a.road, a.city||a.town||a.village, a.state].filter(Boolean).join(', ');
+          renderFieldMode(); bindFieldModeEvents();
+        }).catch(()=>{ fs.gpsLabel = `${pos.coords.latitude.toFixed(4)}, ${pos.coords.longitude.toFixed(4)}`; renderFieldMode(); bindFieldModeEvents(); });
+    }, ()=>alert('Could not get location'));
+  });
 
   // Photo input
-  const photoInput = document.getElementById('field-photo-input');
-  if (photoInput) {
-    photoInput.addEventListener('change', e => {
-      const files = Array.from(e.target.files || []);
-      files.forEach(file => {
-        const reader = new FileReader();
-        reader.onload = ev => {
-          window.__fieldState.photos.push({ dataUrl: ev.target.result, name: file.name, timestamp: new Date().toISOString() });
-          render();
-        };
-        reader.readAsDataURL(file);
-      });
+  ov.querySelector('#field-photo-input')?.addEventListener('change', e => {
+    Array.from(e.target.files||[]).forEach(file => {
+      const reader = new FileReader();
+      reader.onload = ev => { fs.photos.push({ dataUrl: ev.target.result, name: file.name }); renderFieldMode(); bindFieldModeEvents(); };
+      reader.readAsDataURL(file);
     });
-  }
+  });
 
   // Remove photo
-  document.querySelectorAll('[data-remove-photo]').forEach(btn => {
-    btn.addEventListener('click', e => {
-      const idx = parseInt(e.target.dataset.removePhoto);
-      window.__fieldState.photos.splice(idx, 1);
-      render();
-    });
+  ov.querySelectorAll('[data-remove-photo]').forEach(btn => {
+    btn.addEventListener('click', e => { fs.photos.splice(parseInt(e.currentTarget.dataset.removePhoto),1); renderFieldMode(); bindFieldModeEvents(); });
   });
 
   // Log textarea sync
-  const logTxt = document.getElementById('field-log-text');
-  if (logTxt) {
-    logTxt.addEventListener('input', e => { window.__fieldState.logText = e.target.value; });
-  }
+  ov.querySelector('#field-log-text')?.addEventListener('input', e => { fs.logText = e.target.value; });
 
-  // Voice dictation
-  const voiceBtn = document.getElementById('voice-btn');
-  if (voiceBtn) {
-    voiceBtn.addEventListener('click', () => {
-      const SR = window.SpeechRecognition || window.webkitSpeechRecognition;
-      if (!SR) { alert('Voice dictation not supported in this browser. Try Chrome on Android or Safari on iPhone.'); return; }
-      if (window.__fieldRecognition) {
-        window.__fieldRecognition.stop();
-        window.__fieldRecognition = null;
-        document.getElementById('voice-btn-label').textContent = 'Dictate log (voice)';
-        voiceBtn.classList.remove('recording');
-        return;
-      }
-      const rec = new SR();
-      rec.continuous = true;
-      rec.interimResults = true;
-      rec.lang = 'en-US';
-      window.__fieldRecognition = rec;
-      voiceBtn.classList.add('recording');
-      document.getElementById('voice-btn-label').textContent = '🔴 Recording — tap to stop';
-      rec.onresult = ev => {
-        let transcript = '';
-        for (let i = ev.resultIndex; i < ev.results.length; i++) {
-          transcript += ev.results[i][0].transcript;
-        }
-        const logEl = document.getElementById('field-log-text');
-        if (logEl) {
-          const base = window.__fieldState.logText;
-          logEl.value = base + (base && !base.endsWith(' ') ? ' ' : '') + transcript;
-        }
-      };
-      rec.onend = () => {
-        if (window.__fieldRecognition) {
-          const logEl = document.getElementById('field-log-text');
-          if (logEl) window.__fieldState.logText = logEl.value;
-          window.__fieldRecognition = null;
-          voiceBtn.classList.remove('recording');
-          document.getElementById('voice-btn-label').textContent = 'Dictate log (voice)';
-        }
-      };
-      rec.start();
-    });
-  }
-
-  // Submit
-  const submitBtn = document.getElementById('field-submit-btn');
-  if (submitBtn && !submitBtn.disabled) {
-    submitBtn.addEventListener('click', () => {
-      const fs = window.__fieldState;
-      // Sync textarea
-      const logEl = document.getElementById('field-log-text');
-      if (logEl) fs.logText = logEl.value;
-
-      const proj = state.projects.find(p => p.id === fs.jobId);
-      if (!proj) return;
-
-      // Add daily log entry
-      if (!proj.logs) proj.logs = [];
-      const logEntry = {
-        id: 'log-' + Date.now(),
-        date: new Date().toLocaleDateString('en-US', { weekday:'short', month:'short', day:'numeric' }),
-        text: fs.logText || '(No notes)',
-        author: state.settings?.company || 'Field',
-        gps: fs.gps ? fs.gpsLabel : null,
-        photos: fs.photos.map(p => p.dataUrl),
-      };
-      proj.logs.unshift(logEntry);
-
-      // Add photos to project photos array
-      if (!proj.photos) proj.photos = [];
-      fs.photos.forEach((p, i) => {
-        proj.photos.unshift({
-          id: 'fp-' + Date.now() + i,
-          src: p.dataUrl,
-          caption: `Field photo — ${logEntry.date}`,
-          stage: proj.phase || 'Field',
-          date: logEntry.date,
-        });
-      });
-
-      // Update progress
-      proj.lastActivity = logEntry.date;
-
-      // Mark submitted + reset
-      window.__fieldState = {
-        jobId: fs.jobId,
-        photos: [],
-        logText: '',
-        gps: fs.gps,
-        gpsLabel: fs.gpsLabel,
-        submitted: true,
-      };
-      render();
-    });
-  }
-
-  // Reset after success
-  const resetBtn = document.getElementById('field-reset-btn');
-  if (resetBtn) {
-    resetBtn.addEventListener('click', () => {
-      window.__fieldState = { jobId: window.__fieldState.jobId, photos: [], logText: '', gps: window.__fieldState.gps, gpsLabel: window.__fieldState.gpsLabel, submitted: false };
-      render();
-    });
-  }
-
-  // PWA install
-  const installBtn = document.getElementById('install-btn');
-  if (installBtn && window.__deferredInstall) {
-    installBtn.addEventListener('click', () => {
-      window.__deferredInstall.prompt();
-      window.__deferredInstall.userChoice.then(() => { window.__deferredInstall = null; render(); });
-    });
-  }
-
-  // Field inner tab strip
-  document.querySelectorAll('[data-field-tab]').forEach(btn => {
-    btn.addEventListener('click', e => {
-      window.__fieldState.tab = e.currentTarget.dataset.fieldTab;
-      render();
-    });
+  // Submit log
+  ov.querySelector('#field-submit-btn')?.addEventListener('click', () => {
+    const logEl = ov.querySelector('#field-log-text');
+    if (logEl) fs.logText = logEl.value;
+    const proj = state.projects.find(p=>p.id===fs.jobId);
+    if (!proj) return;
+    if (!proj.logs) proj.logs = [];
+    const entry = { id:'log-'+Date.now(), date: new Date().toLocaleDateString('en-US',{weekday:'short',month:'short',day:'numeric'}), text: fs.logText||'(No notes)', author: state.settings?.company||'Field', gps: fs.gps?fs.gpsLabel:null, photos: fs.photos.map(p=>p.dataUrl) };
+    proj.logs.unshift(entry);
+    if (!proj.photos) proj.photos=[];
+    fs.photos.forEach((ph,i)=>proj.photos.unshift({id:'fp-'+Date.now()+i,src:ph.dataUrl,caption:`Field photo — ${entry.date}`,stage:proj.phase||'Field',date:entry.date}));
+    fs.photos=[]; fs.logText='';
+    saveState(); renderFieldMode(); bindFieldModeEvents();
   });
 
-  // Punch list — add
-  document.getElementById('punch-add-btn')?.addEventListener('click', () => {
-    const inp = document.getElementById('punch-new-input');
-    const trade = document.getElementById('punch-trade-sel')?.value || 'GC';
+  // Punch add
+  ov.querySelector('#punch-add-btn')?.addEventListener('click', () => {
+    const inp = ov.querySelector('#punch-new-input');
+    const trade = ov.querySelector('#punch-trade-sel')?.value||'GC';
     const text = inp?.value?.trim();
     if (!text) return;
-    const proj = state.projects.find(p => p.id === window.__fieldState.jobId);
+    const proj = state.projects.find(p=>p.id===fs.jobId);
     if (!proj) return;
-    if (!proj.punchList) proj.punchList = [];
-    proj.punchList.unshift({ id: 'p-'+Date.now(), text, trade, done: false, date: new Date().toLocaleDateString('en-US',{month:'short',day:'numeric'}) });
-    saveState(); render();
+    if (!proj.punchList) proj.punchList=[];
+    proj.punchList.unshift({id:'p-'+Date.now(),text,trade,done:false,date:new Date().toLocaleDateString('en-US',{month:'short',day:'numeric'})});
+    saveState(); renderFieldMode(); bindFieldModeEvents();
   });
-  document.getElementById('punch-new-input')?.addEventListener('keydown', e => {
-    if (e.key === 'Enter') document.getElementById('punch-add-btn')?.click();
+  ov.querySelectorAll('[data-punch-toggle]').forEach(btn=>btn.addEventListener('click',e=>{
+    const proj=state.projects.find(p=>p.id===fs.jobId); if(!proj||!proj.punchList)return;
+    proj.punchList[parseInt(e.currentTarget.dataset.punchToggle)].done ^= true;
+    saveState(); renderFieldMode(); bindFieldModeEvents();
+  }));
+  ov.querySelectorAll('[data-punch-del]').forEach(btn=>btn.addEventListener('click',e=>{
+    const proj=state.projects.find(p=>p.id===fs.jobId); if(!proj||!proj.punchList)return;
+    proj.punchList.splice(parseInt(e.currentTarget.dataset.punchDel),1);
+    saveState(); renderFieldMode(); bindFieldModeEvents();
+  }));
+
+  // RFI submit
+  ov.querySelector('#rfi-submit-btn')?.addEventListener('click',()=>{
+    const subject=ov.querySelector('#rfi-subject')?.value?.trim();
+    if(!subject)return;
+    const proj=state.projects.find(p=>p.id===fs.jobId); if(!proj)return;
+    if(!proj.rfis)proj.rfis=[];
+    proj.rfis.unshift({id:'rfi-'+Date.now(),subject,body:ov.querySelector('#rfi-body')?.value?.trim()||'',trade:ov.querySelector('#rfi-trade-sel')?.value||'GC',status:'open',date:new Date().toLocaleDateString('en-US',{month:'short',day:'numeric',year:'numeric'})});
+    saveState(); renderFieldMode(); bindFieldModeEvents();
+  });
+  ov.querySelectorAll('[data-rfi-close]').forEach(btn=>btn.addEventListener('click',e=>{
+    const proj=state.projects.find(p=>p.id===fs.jobId); if(!proj||!proj.rfis)return;
+    proj.rfis[parseInt(e.currentTarget.dataset.rfiClose)].status='resolved';
+    saveState(); renderFieldMode(); bindFieldModeEvents();
+  }));
+
+  // CO toggle form
+  ov.querySelector('#fm-add-co-btn')?.addEventListener('click',()=>{
+    const f=ov.querySelector('#fm-co-form'); if(f)f.style.display=f.style.display==='none'?'block':'none';
+  });
+  ov.querySelector('#fm-co-cancel')?.addEventListener('click',()=>{
+    const f=ov.querySelector('#fm-co-form'); if(f)f.style.display='none';
+  });
+  ov.querySelector('#fm-co-save')?.addEventListener('click',()=>{
+    const title=ov.querySelector('#co-title')?.value?.trim(); if(!title)return;
+    const proj=state.projects.find(p=>p.id===fs.jobId); if(!proj)return;
+    if(!proj.changeOrders)proj.changeOrders=[];
+    proj.changeOrders.unshift({id:'co-'+Date.now(),title,amount:parseFloat(ov.querySelector('#co-amount')?.value)||0,status:ov.querySelector('#co-status')?.value||'pending',desc:ov.querySelector('#co-desc')?.value?.trim()||'',date:new Date().toLocaleDateString('en-US',{month:'short',day:'numeric',year:'numeric'})});
+    saveState(); renderFieldMode(); bindFieldModeEvents();
   });
 
-  // Punch list — toggle done
-  document.querySelectorAll('[data-punch-toggle]').forEach(btn => {
-    btn.addEventListener('click', e => {
-      const idx = parseInt(e.currentTarget.dataset.punchToggle);
-      const proj = state.projects.find(p => p.id === window.__fieldState.jobId);
-      if (!proj || !proj.punchList) return;
-      proj.punchList[idx].done = !proj.punchList[idx].done;
-      saveState(); render();
+  // Tasks
+  ov.querySelector('#fm-task-add-btn')?.addEventListener('click',()=>{
+    const f=ov.querySelector('#fm-task-form'); if(f)f.style.display=f.style.display==='none'?'flex':'none';
+  });
+  ov.querySelector('#fm-task-save')?.addEventListener('click',()=>{
+    const inp=ov.querySelector('#fm-task-input'); const title=inp?.value?.trim(); if(!title)return;
+    const proj=state.projects.find(p=>p.id===fs.jobId); if(!proj)return;
+    if(!proj.tasks)proj.tasks=[];
+    proj.tasks.unshift({id:'tsk-'+Date.now(),title,trade:ov.querySelector('#fm-task-trade')?.value||'GC',done:false});
+    if(inp)inp.value=''; saveState(); renderFieldMode(); bindFieldModeEvents();
+  });
+  ov.querySelectorAll('[data-task-toggle]').forEach(el=>{
+    el.addEventListener('click',e=>{
+      const [pid,tid]=e.currentTarget.dataset.taskToggle.split(':');
+      const proj=state.projects.find(p=>p.id===pid); if(!proj)return;
+      const t=proj.tasks.find(x=>x.id===tid); if(t)t.done=!t.done;
+      saveState(); renderFieldMode(); bindFieldModeEvents();
     });
-  });
-
-  // Punch list — delete
-  document.querySelectorAll('[data-punch-del]').forEach(btn => {
-    btn.addEventListener('click', e => {
-      const idx = parseInt(e.currentTarget.dataset.punchDel);
-      const proj = state.projects.find(p => p.id === window.__fieldState.jobId);
-      if (!proj || !proj.punchList) return;
-      proj.punchList.splice(idx, 1);
-      saveState(); render();
-    });
-  });
-
-  // RFI — submit
-  document.getElementById('rfi-submit-btn')?.addEventListener('click', () => {
-    const subject = document.getElementById('rfi-subject')?.value?.trim();
-    const body = document.getElementById('rfi-body')?.value?.trim();
-    const trade = document.getElementById('rfi-trade-sel')?.value || 'GC';
-    if (!subject) { document.getElementById('rfi-subject')?.focus(); return; }
-    const proj = state.projects.find(p => p.id === window.__fieldState.jobId);
-    if (!proj) return;
-    if (!proj.rfis) proj.rfis = [];
-    proj.rfis.unshift({
-      id: 'rfi-'+Date.now(), subject, body: body || '', trade, status: 'open',
-      date: new Date().toLocaleDateString('en-US',{month:'short',day:'numeric',year:'numeric'})
-    });
-    saveState(); render();
-  });
-
-  // RFI — mark resolved
-  document.querySelectorAll('[data-rfi-close]').forEach(btn => {
-    btn.addEventListener('click', e => {
-      const idx = parseInt(e.currentTarget.dataset.rfiClose);
-      const proj = state.projects.find(p => p.id === window.__fieldState.jobId);
-      if (!proj || !proj.rfis) return;
-      proj.rfis[idx].status = 'resolved';
-      saveState(); render();
-    });
-  });
-
-  // Change Orders — toggle form
-  document.getElementById('fm-add-co-btn')?.addEventListener('click', () => {
-    const form = document.getElementById('fm-co-form');
-    if (form) form.style.display = form.style.display === 'none' ? 'block' : 'none';
-  });
-  document.getElementById('fm-co-cancel')?.addEventListener('click', () => {
-    const form = document.getElementById('fm-co-form');
-    if (form) form.style.display = 'none';
-    ['co-title','co-amount','co-desc'].forEach(id => {
-      const el = document.getElementById(id); if (el) el.value = '';
-    });
-    const sel = document.getElementById('co-status'); if (sel) sel.value = 'pending';
-  });
-  document.getElementById('fm-co-save')?.addEventListener('click', () => {
-    const title = document.getElementById('co-title')?.value?.trim();
-    const amount = parseFloat(document.getElementById('co-amount')?.value) || 0;
-    const status = document.getElementById('co-status')?.value || 'pending';
-    const desc = document.getElementById('co-desc')?.value?.trim() || '';
-    if (!title) { document.getElementById('co-title')?.focus(); return; }
-    const proj = state.projects.find(p => p.id === window.__fieldState.jobId);
-    if (!proj) return;
-    if (!proj.changeOrders) proj.changeOrders = [];
-    proj.changeOrders.unshift({
-      id: 'co-' + Date.now(), title, amount, status, desc,
-      date: new Date().toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' })
-    });
-    saveState(); render();
-  });
-
-  // PM Tasks — from field tab (uses same p.tasks array as desktop PM view)
-  document.getElementById('fm-task-add-btn')?.addEventListener('click', () => {
-    const form = document.getElementById('fm-task-form');
-    if (form) form.style.display = form.style.display === 'none' ? 'flex' : 'none';
-  });
-  document.getElementById('fm-task-save')?.addEventListener('click', () => {
-    const inp = document.getElementById('fm-task-input');
-    const tradeEl = document.getElementById('fm-task-trade');
-    const title = inp?.value?.trim();
-    if (!title) return;
-    const proj = state.projects.find(p => p.id === window.__fieldState.jobId);
-    if (!proj) return;
-    if (!proj.tasks) proj.tasks = [];
-    proj.tasks.unshift({
-      id: 'tsk-' + Date.now(), title, trade: tradeEl?.value || 'GC', done: false
-    });
-    if (inp) inp.value = '';
-    const form = document.getElementById('fm-task-form');
-    if (form) form.style.display = 'none';
-    saveState(); render();
-  });
-  document.getElementById('fm-task-input')?.addEventListener('keydown', e => {
-    if (e.key === 'Enter') document.getElementById('fm-task-save')?.click();
   });
 }
+
+
 
 // ---------- TIME CLOCK ----------
 function renderTimeClock() {
