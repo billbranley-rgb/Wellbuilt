@@ -1215,6 +1215,61 @@
 .wc-export-btn:hover { border-color: var(--accent); color: var(--accent); }
 .wc-rate-note { font-size: 12px; color: var(--text-muted); background: rgba(59,130,246,0.06); border: 1px solid rgba(59,130,246,0.15); border-radius: 8px; padding: 8px 14px; margin-bottom: 18px; display: flex; align-items: center; gap: 6px; }
 .wc-empty { text-align: center; padding: 50px 20px; color: var(--text-muted); font-size: 13px; }
+
+/* ---- Xactimate Room Estimator ---- */
+.xa-shell { padding: 20px; max-width: 1000px; margin: 0 auto; }
+.xa-levels { display: flex; gap: 6px; margin-bottom: 20px; flex-wrap: wrap; }
+.xa-level-btn { padding: 6px 16px; border-radius: 20px; font-size: 12.5px; font-weight: 600; cursor: pointer; background: transparent; border: 1px solid var(--border); color: var(--text-muted); }
+.xa-level-btn.active { background: var(--accent); color: #fff; border-color: var(--accent); }
+.xa-overview-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(200px, 1fr)); gap: 14px; margin-bottom: 24px; }
+.xa-kpi { background: var(--surface); border: 1px solid var(--border); border-radius: 12px; padding: 14px 16px; }
+.xa-kpi .label { font-size: 11px; font-weight: 700; letter-spacing: 0.07em; text-transform: uppercase; color: var(--text-muted); margin-bottom: 4px; }
+.xa-kpi .value { font-size: 20px; font-weight: 800; color: var(--text); }
+.xa-kpi .sub { font-size: 11.5px; color: var(--text-muted); margin-top: 2px; }
+.xa-kpi.accent { border-color: var(--accent); background: rgba(59,130,246,0.07); }
+.xa-kpi.accent .value { color: var(--accent); }
+.xa-trade-table { width: 100%; border-collapse: collapse; margin-bottom: 24px; }
+.xa-trade-table th { font-size: 10.5px; font-weight: 700; letter-spacing: 0.07em; text-transform: uppercase; color: var(--text-muted); padding: 8px 12px; text-align: left; border-bottom: 2px solid var(--border); }
+.xa-trade-table th:not(:first-child) { text-align: right; }
+.xa-trade-table td { padding: 9px 12px; border-bottom: 1px solid var(--border); font-size: 13px; }
+.xa-trade-table td:not(:first-child) { text-align: right; font-variant-numeric: tabular-nums; }
+.xa-trade-table tr:hover td { background: rgba(59,130,246,0.03); }
+.xa-trade-table .total-row td { font-weight: 700; background: rgba(59,130,246,0.05); font-size: 13.5px; }
+.xa-trade-bar { height: 4px; border-radius: 2px; background: var(--accent); margin-top: 4px; }
+.xa-room-card { background: var(--surface); border: 1px solid var(--border); border-radius: 14px; margin-bottom: 14px; overflow: hidden; }
+.xa-room-head { display: flex; align-items: center; justify-content: space-between; padding: 14px 16px; border-bottom: 1px solid var(--border); cursor: pointer; }
+.xa-room-name { font-size: 14px; font-weight: 700; }
+.xa-room-dims { font-size: 12px; color: var(--text-muted); margin-top: 2px; }
+.xa-room-total { font-size: 16px; font-weight: 800; color: var(--accent); }
+.xa-room-body { padding: 0 0 8px; }
+.xa-line-table { width: 100%; border-collapse: collapse; }
+.xa-line-table th { font-size: 10px; font-weight: 700; letter-spacing: 0.06em; text-transform: uppercase; color: var(--text-muted); padding: 7px 12px; border-bottom: 1px solid var(--border); text-align: left; }
+.xa-line-table th:not(:first-child) { text-align: right; }
+.xa-line-table td { font-size: 12px; padding: 7px 12px; border-bottom: 1px solid var(--border); vertical-align: middle; }
+.xa-line-table td:not(:first-child) { text-align: right; font-variant-numeric: tabular-nums; }
+.xa-line-table tr:last-child td { border-bottom: none; }
+.xa-line-table tr:hover td { background: rgba(59,130,246,0.03); }
+.xa-cat-row td { font-size: 10.5px; font-weight: 700; text-transform: uppercase; letter-spacing: 0.05em; color: var(--text-muted); background: rgba(59,130,246,0.04); padding: 5px 12px; }
+.xa-rcv-col { color: var(--text); font-weight: 600; }
+.xa-acv-col { color: var(--text-muted); }
+.xa-dep-col { color: #ef4444; font-size: 11px; }
+.xa-add-room-btn { width: 100%; padding: 14px; border: 2px dashed var(--border); border-radius: 14px; background: transparent; color: var(--text-muted); font-size: 13px; font-weight: 600; cursor: pointer; margin-bottom: 16px; }
+.xa-add-room-btn:hover { border-color: var(--accent); color: var(--accent); }
+.xa-modal-overlay { position: fixed; inset: 0; background: rgba(0,0,0,0.5); z-index: 1000; display: flex; align-items: flex-end; justify-content: center; }
+.xa-modal { background: var(--surface); border-radius: 18px 18px 0 0; width: 100%; max-width: 600px; padding: 24px 20px 36px; max-height: 92vh; overflow-y: auto; }
+.xa-modal h3 { margin: 0 0 16px; font-size: 1.05rem; font-weight: 700; }
+.xa-scope-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(140px, 1fr)); gap: 8px; margin-bottom: 16px; }
+.xa-scope-item { display: flex; align-items: center; gap: 7px; padding: 8px 10px; border-radius: 8px; border: 1px solid var(--border); cursor: pointer; font-size: 12.5px; font-weight: 500; background: var(--surface); }
+.xa-scope-item.selected { border-color: var(--accent); background: rgba(59,130,246,0.08); color: var(--accent); font-weight: 700; }
+.xa-scope-check { width: 14px; height: 14px; border-radius: 3px; border: 2px solid var(--border); flex-shrink: 0; }
+.xa-scope-item.selected .xa-scope-check { background: var(--accent); border-color: var(--accent); }
+.xa-summary-footer { background: var(--surface); border: 1px solid var(--border); border-radius: 14px; padding: 20px; margin-top: 20px; }
+.xa-summary-footer h3 { margin: 0 0 14px; font-size: 1rem; }
+.xa-summary-line { display: flex; justify-content: space-between; padding: 5px 0; font-size: 13px; }
+.xa-summary-line.total { font-weight: 800; font-size: 16px; border-top: 2px solid var(--border); margin-top: 8px; padding-top: 10px; color: var(--accent); }
+.xa-condition-row { display: flex; gap: 8px; margin-bottom: 14px; }
+.xa-condition-btn { flex: 1; padding: 8px; border-radius: 8px; border: 1px solid var(--border); background: var(--surface); font-size: 12px; font-weight: 600; cursor: pointer; text-align: center; }
+.xa-condition-btn.active { border-color: var(--accent); background: rgba(59,130,246,0.1); color: var(--accent); }
 .wc-manual-tag { display: inline-flex; align-items: center; gap: 4px; font-size: 10px; font-weight: 700; background: rgba(168,85,247,0.12); color: #a855f7; padding: 2px 7px; border-radius: 20px; margin-left: 6px; }
 .wc-modal-overlay { position: fixed; inset: 0; background: rgba(0,0,0,0.5); z-index: 1000; display: flex; align-items: flex-end; justify-content: center; }
 .wc-modal { background: var(--surface); border-radius: 18px 18px 0 0; width: 100%; max-width: 520px; padding: 24px 20px 36px; max-height: 88vh; overflow-y: auto; }
@@ -1380,6 +1435,8 @@ const defaultState = {
     { id: 'la4', title: 'Rough plumbing inspection', dueDate: new Date(Date.now()+7*86400000).toISOString().slice(0,10), projectId: 'p1', assignedTo: 'Inspector', assignedName: 'Montclair Building Dept', priority: 'Critical', status: 'pending', note: '' },
     { id: 'la5', title: 'Review revised bid scope', dueDate: new Date(Date.now()-1*86400000).toISOString().slice(0,10), projectId: 'p2', assignedTo: 'Client', assignedName: 'Cohen Family', priority: 'Normal', status: 'pending', note: '' },
   ],
+  xaRooms: [],
+  xaMeta: { projectId: '', projectType: 'Bathroom remodel', address: '', state: 'NJ', sqft: '', stories: '1', yearBuilt: '', construction: 'Wood frame', condition: 'Average', tier: 'mid', activeLevel: 1, activeRoom: null },
 };
 
 let state = null;
@@ -1390,6 +1447,8 @@ function loadState() {
     if (saved) {
       state = JSON.parse(saved);
       state.settings = { ...defaultState.settings, ...state.settings };
+      if (!state.xaRooms) state.xaRooms = [];
+      if (!state.xaMeta) state.xaMeta = { ...defaultState.xaMeta };
     } else {
       state = structuredClone(defaultState);
       // generate estimates for seeded projects
@@ -1479,6 +1538,11 @@ function stateInfo(code) {
 
 function fmtUsd(n) {
   return '$' + Math.round(n).toLocaleString('en-US');
+}
+function fmtUsdExact(n) {
+  // Shows cents only if non-zero, for unit price display accuracy
+  const r = Math.round(n * 100) / 100;
+  return '$' + r.toLocaleString('en-US', { minimumFractionDigits: r % 1 === 0 ? 0 : 2, maximumFractionDigits: 2 });
 }
 
 function buildEstimate(project, takeoff) {
@@ -1888,6 +1952,7 @@ function renderSidebar() {
     { key: 'receipts', label: 'Receipts', icon: 'doc' },
     { key: 'lookahead', label: '2-Week Look Ahead', icon: 'schedule' },
     { key: 'weeklycost', label: 'Weekly Costs', icon: 'dollar' },
+    { key: 'xactimate', label: 'Room Estimator', icon: 'trending' },
     { key: 'settings', label: 'Settings', icon: 'settings' },
   ];
   return `
@@ -1976,6 +2041,7 @@ function renderPage() {
     case 'receipts': return renderReceipts();
     case 'lookahead': return renderLookahead();
     case 'weeklycost': return renderWeeklyCost();
+    case 'xactimate': return renderXactimate();
     default: return renderHome();
   }
 }
@@ -2902,7 +2968,7 @@ function renderEstimateDisplay(d, est, opts = {}) {
             <tr>
               <td>${l.name}</td>
               <td style="text-align: right;" class="mono">${l.qty.toLocaleString()}</td>
-              <td style="text-align: right;" class="mono">${fmtUsd(l.unitPrice)}/${l.unit}</td>
+              <td style="text-align: right;" class="mono">${fmtUsdExact(l.unitPrice)}/${l.unit}</td>
               <td style="text-align: right;" class="mono" style="font-weight: 600;">${fmtUsd(l.total)}</td>
             </tr>
           `).join('')}
@@ -4813,6 +4879,863 @@ function bindTimesheetsEvents() {
   });
 }
 
+// ============================================================
+// XACTIMATE-STYLE ROOM-BY-ROOM ESTIMATOR
+// ============================================================
+
+// NE regional unit pricing table — trade → line item → {unit, laborUnit, matUnit, laborHrs}
+// RCV = labor + material; ACV = RCV - depreciation; Depreciation based on condition
+const XA_LINES = {
+  Demo: [
+    { code:'DEM001', desc:'Demo — Wall tile (per SF)',              unit:'SF',  laborUnit:1.80,  matUnit:0.10  },
+    { code:'DEM002', desc:'Demo — Floor tile (per SF)',             unit:'SF',  laborUnit:1.60,  matUnit:0.08  },
+    { code:'DEM003', desc:'Demo — Vanity / cabinet removal',        unit:'EA',  laborUnit:75.00, matUnit:0.00  },
+    { code:'DEM004', desc:'Demo — Bathtub removal',                 unit:'EA',  laborUnit:150.00,matUnit:0.00  },
+    { code:'DEM005', desc:'Demo — Drywall (per SF)',                unit:'SF',  laborUnit:0.90,  matUnit:0.05  },
+    { code:'DEM006', desc:'Demo — Flooring / LVP (per SF)',         unit:'SF',  laborUnit:0.75,  matUnit:0.05  },
+    { code:'DEM007', desc:'Demo — Kitchen cabinet set',             unit:'EA',  laborUnit:250.00,matUnit:0.00  },
+    { code:'DEM008', desc:'Haul away / dumpster (per load)',        unit:'EA',  laborUnit:120.00,matUnit:380.00},
+  ],
+  Drywall: [
+    { code:'DRY001', desc:'Drywall — 1/2" hang & finish (per SF)',  unit:'SF',  laborUnit:2.10,  matUnit:0.85  },
+    { code:'DRY002', desc:'Drywall — Cement board (per SF)',        unit:'SF',  laborUnit:2.40,  matUnit:1.20  },
+    { code:'DRY003', desc:'Drywall — Repair patch (per SF)',        unit:'SF',  laborUnit:3.50,  matUnit:0.60  },
+    { code:'DRY004', desc:'Drywall — Tape, float, paint-ready',     unit:'SF',  laborUnit:1.20,  matUnit:0.40  },
+  ],
+  Tile: [
+    { code:'TIL001', desc:'Tile — Wall tile install (per SF)',       unit:'SF',  laborUnit:8.50,  matUnit:6.00  },
+    { code:'TIL002', desc:'Tile — Floor tile install (per SF)',      unit:'SF',  laborUnit:9.00,  matUnit:7.50  },
+    { code:'TIL003', desc:'Tile — Shower floor mud bed',            unit:'SF',  laborUnit:7.50,  matUnit:3.50  },
+    { code:'TIL004', desc:'Tile — Niche / accent strip (per LF)',   unit:'LF',  laborUnit:18.00, matUnit:24.00 },
+    { code:'TIL005', desc:'Tile — Grout & seal (per SF)',           unit:'SF',  laborUnit:2.00,  matUnit:0.75  },
+    { code:'TIL006', desc:'Tile — Waterproofing membrane (per SF)', unit:'SF',  laborUnit:2.50,  matUnit:1.80  },
+    { code:'TIL007', desc:'Tile — Schluter edge trim (per LF)',     unit:'LF',  laborUnit:4.50,  matUnit:8.00  },
+  ],
+  Flooring: [
+    { code:'FLR001', desc:'Flooring — LVP install (per SF)',         unit:'SF',  laborUnit:3.00,  matUnit:4.50  },
+    { code:'FLR002', desc:'Flooring — Hardwood install (per SF)',    unit:'SF',  laborUnit:5.50,  matUnit:9.00  },
+    { code:'FLR003', desc:'Flooring — Carpet (per SY)',              unit:'SY',  laborUnit:6.00,  matUnit:18.00 },
+    { code:'FLR004', desc:'Flooring — Self-leveling (per SF)',       unit:'SF',  laborUnit:2.20,  matUnit:1.40  },
+    { code:'FLR005', desc:'Flooring — Heated floor system (per SF)', unit:'SF',  laborUnit:8.00,  matUnit:12.00 },
+    { code:'FLR006', desc:'Base molding install (per LF)',           unit:'LF',  laborUnit:2.80,  matUnit:2.50  },
+  ],
+  Paint: [
+    { code:'PNT001', desc:'Paint — Walls 2-coat (per SF)',           unit:'SF',  laborUnit:1.10,  matUnit:0.55  },
+    { code:'PNT002', desc:'Paint — Ceiling (per SF)',                unit:'SF',  laborUnit:1.20,  matUnit:0.55  },
+    { code:'PNT003', desc:'Paint — Trim / doors (per LF)',           unit:'LF',  laborUnit:2.20,  matUnit:0.80  },
+    { code:'PNT004', desc:'Paint — Prime only (per SF)',             unit:'SF',  laborUnit:0.65,  matUnit:0.30  },
+  ],
+  Plumbing: [
+    { code:'PLM001', desc:'Plumbing — Rough-in (per fixture)',       unit:'EA',  laborUnit:350.00,matUnit:120.00},
+    { code:'PLM002', desc:'Plumbing — Vanity faucet install',        unit:'EA',  laborUnit:175.00,matUnit:0.00  },
+    { code:'PLM003', desc:'Plumbing — Toilet install',               unit:'EA',  laborUnit:195.00,matUnit:0.00  },
+    { code:'PLM004', desc:'Plumbing — Shower valve + trim',          unit:'EA',  laborUnit:285.00,matUnit:0.00  },
+    { code:'PLM005', desc:'Plumbing — Supply line replacement (per LF)',unit:'LF',laborUnit:18.00,matUnit:8.50 },
+    { code:'PLM006', desc:'Plumbing — Drain / trap (per EA)',        unit:'EA',  laborUnit:120.00,matUnit:45.00 },
+    { code:'PLM007', desc:'Plumbing — Tub install',                  unit:'EA',  laborUnit:295.00,matUnit:0.00  },
+  ],
+  Electrical: [
+    { code:'ELC001', desc:'Electrical — Rough (per circuit)',        unit:'EA',  laborUnit:280.00,matUnit:95.00 },
+    { code:'ELC002', desc:'Electrical — GFCI outlet install',        unit:'EA',  laborUnit:85.00, matUnit:22.00 },
+    { code:'ELC003', desc:'Electrical — Recessed light (per EA)',    unit:'EA',  laborUnit:95.00, matUnit:35.00 },
+    { code:'ELC004', desc:'Electrical — Vanity light install',       unit:'EA',  laborUnit:110.00,matUnit:0.00  },
+    { code:'ELC005', desc:'Electrical — Exhaust fan install',        unit:'EA',  laborUnit:145.00,matUnit:0.00  },
+    { code:'ELC006', desc:'Electrical — Panel circuit (per breaker)',unit:'EA',  laborUnit:195.00,matUnit:42.00 },
+  ],
+  Cabinetry: [
+    { code:'CAB001', desc:'Cabinetry — Base cabinet (per LF)',       unit:'LF',  laborUnit:95.00, matUnit:280.00},
+    { code:'CAB002', desc:'Cabinetry — Wall cabinet (per LF)',       unit:'LF',  laborUnit:85.00, matUnit:220.00},
+    { code:'CAB003', desc:'Cabinetry — Vanity supply & install',     unit:'EA',  laborUnit:195.00,matUnit:650.00},
+    { code:'CAB004', desc:'Cabinetry — Island box install',          unit:'EA',  laborUnit:380.00,matUnit:0.00  },
+    { code:'CAB005', desc:'Countertop — Laminate (per SF)',          unit:'SF',  laborUnit:18.00, matUnit:22.00 },
+    { code:'CAB006', desc:'Countertop — Quartz / stone (per SF)',    unit:'SF',  laborUnit:28.00, matUnit:85.00 },
+  ],
+  HVAC: [
+    { code:'HVC001', desc:'HVAC — Vent relocation',                  unit:'EA',  laborUnit:285.00,matUnit:75.00 },
+    { code:'HVC002', desc:'HVAC — Bath exhaust duct (per LF)',       unit:'LF',  laborUnit:18.00, matUnit:8.00  },
+    { code:'HVC003', desc:'HVAC — Radiant heat per zone',            unit:'EA',  laborUnit:550.00,matUnit:420.00},
+  ],
+  Millwork: [
+    { code:'MIL001', desc:'Millwork — Door supply & install',        unit:'EA',  laborUnit:185.00,matUnit:285.00},
+    { code:'MIL002', desc:'Millwork — Window trim (per LF)',         unit:'LF',  laborUnit:8.50,  matUnit:5.50  },
+    { code:'MIL003', desc:'Millwork — Shelf / niche (per EA)',       unit:'EA',  laborUnit:95.00, matUnit:65.00 },
+    { code:'MIL004', desc:'Millwork — Crown molding (per LF)',       unit:'LF',  laborUnit:7.50,  matUnit:4.80  },
+  ],
+  Fixtures: [
+    { code:'FIX001', desc:'Fixture — Toilet supply & set',           unit:'EA',  laborUnit:195.00,matUnit:450.00},
+    { code:'FIX002', desc:'Fixture — Vanity light bar',              unit:'EA',  laborUnit:85.00, matUnit:180.00},
+    { code:'FIX003', desc:'Fixture — Mirror supply & hang',          unit:'EA',  laborUnit:75.00, matUnit:220.00},
+    { code:'FIX004', desc:'Fixture — Towel bar / tp holder set',     unit:'EA',  laborUnit:45.00, matUnit:85.00 },
+    { code:'FIX005', desc:'Fixture — Shower door / enclosure',       unit:'EA',  laborUnit:285.00,matUnit:950.00},
+    { code:'FIX006', desc:'Fixture — Kitchen appliance install',     unit:'EA',  laborUnit:175.00,matUnit:0.00  },
+  ],
+  Cleaning: [
+    { code:'CLN001', desc:'Construction clean (per SF)',              unit:'SF',  laborUnit:0.45,  matUnit:0.10  },
+    { code:'CLN002', desc:'Final detail clean (per SF)',              unit:'SF',  laborUnit:0.65,  matUnit:0.15  },
+  ],
+};
+
+// Depreciation rate by condition
+const XA_DEPR = { Excellent:0.05, Good:0.10, Average:0.15, Fair:0.25, Poor:0.35 };
+
+// Overhead & profit
+const XA_OHP = 0.18;
+
+function xaCalcLine(line, stateMult, condition) {
+  const qty = parseFloat(line.qty) || 0;
+  const laborUnit = parseFloat(line.laborUnit) || 0;
+  const matUnit = parseFloat(line.matUnit) || 0;
+  const labor = qty * laborUnit * stateMult;
+  const mat = qty * matUnit;
+  const rcv = labor + mat;
+  const deprRate = XA_DEPR[condition] || 0.15;
+  const depr = mat * deprRate;   // depreciation applies to materials only
+  const acv = rcv - depr;
+  return { labor, mat, rcv, depr, acv };
+}
+
+function xaRoomTotal(room, stateMult) {
+  const cond = state.xaMeta.condition || 'Average';
+  return room.lines.reduce((s, l) => {
+    const c = xaCalcLine(l, stateMult, cond);
+    return s + c.rcv;
+  }, 0);
+}
+
+function xaGrandTotal() {
+  if (!state.xaRooms || !state.xaRooms.length) return 0;
+  const sm = stateInfo(state.xaMeta.state).laborRate;
+  const base = state.xaRooms.reduce((s, r) => s + xaRoomTotal(r, sm), 0);
+  return base * (1 + XA_OHP);
+}
+
+function xaTradeSummary() {
+  const sm = stateInfo(state.xaMeta.state).laborRate;
+  const cond = state.xaMeta.condition || 'Average';
+  const trades = {};
+  (state.xaRooms || []).forEach(room => {
+    room.lines.forEach(l => {
+      const trade = l.trade || 'Other';
+      if (!trades[trade]) trades[trade] = { rcv:0, labor:0, mat:0, depr:0, acv:0 };
+      const c = xaCalcLine(l, sm, cond);
+      trades[trade].rcv += c.rcv;
+      trades[trade].labor += c.labor;
+      trades[trade].mat += c.mat;
+      trades[trade].depr += c.depr;
+      trades[trade].acv += c.acv;
+    });
+  });
+  return trades;
+}
+
+function renderXactimate() {
+  if (!state.xaMeta) state.xaMeta = { ...defaultState.xaMeta };
+  if (!state.xaRooms) state.xaRooms = [];
+
+  const meta = state.xaMeta;
+  const level = meta.activeLevel || 1;
+  const sm = stateInfo(meta.state).laborRate;
+  const grand = xaGrandTotal();
+  const base = grand / (1 + XA_OHP);
+  const ohpAmt = grand - base;
+  const sqft = parseFloat(meta.sqft) || 0;
+  const costPerSqft = sqft > 0 ? grand / sqft : 0;
+
+  const levels = [
+    { n:1, label:'Project Overview' },
+    { n:2, label:'Trade Summary' },
+    { n:3, label:'Room by Room' },
+    { n:4, label:'Line Items' },
+  ];
+
+  // ---------- LEVEL TABS ----------
+  const levelTabs = `
+    <div class="xa-levels">
+      ${levels.map(l => `
+        <button class="btn ${level===l.n?'btn-primary':'btn-ghost'}" data-xa-level="${l.n}" style="font-size:12px;padding:6px 14px;">
+          <span style="opacity:.7;margin-right:4px">${l.n}.</span>${l.label}
+        </button>`).join('')}
+      <div style="flex:1"></div>
+      <button class="btn btn-ghost" id="xa-pdf-btn" style="font-size:12px;padding:6px 14px;">${ico('file')} Export PDF</button>
+    </div>
+  `;
+
+  // ---------- LEVEL 1: PROJECT OVERVIEW ----------
+  const renderL1 = () => {
+    const projects = state.projects || [];
+    const projOpts = projects.map(p => `<option value="${p.id}" ${meta.projectId===p.id?'selected':''}>${p.name}</option>`).join('');
+    const stateOpts = STATES.map(s => `<option value="${s.code}" ${meta.state===s.code?'selected':''}>${s.name}</option>`).join('');
+    const tierOpts = Object.values(TIERS).map(t => `<option value="${t.key}" ${meta.tier===t.key?'selected':''}>${t.name}</option>`).join('');
+    const condOpts = ['Excellent','Good','Average','Fair','Poor'].map(c => `<option value="${c}" ${(meta.condition||'Average')===c?'selected':''}>${c}</option>`).join('');
+    const typeOpts = PROJECT_TYPES.map(t => `<option value="${t}" ${meta.projectType===t?'selected':''}>${t}</option>`).join('');
+    const stateLabel = stateInfo(meta.state).name;
+    const smPct = Math.round((stateInfo(meta.state).laborRate - 1) * 100);
+    const smLabel = smPct >= 0 ? `+${smPct}%` : `${smPct}%`;
+
+    return `
+      <!-- KPI BAR -->
+      <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(140px,1fr));gap:12px;margin-bottom:24px;">
+        <div class="xa-kpi accent">
+          <div class="label">Grand Total (RCV)</div>
+          <div class="value">${fmtUsd(grand)}</div>
+          <div class="sub">incl. ${Math.round(XA_OHP*100)}% OH&P</div>
+        </div>
+        <div class="xa-kpi">
+          <div class="label">Base Cost</div>
+          <div class="value">${fmtUsd(base)}</div>
+          <div class="sub">before overhead</div>
+        </div>
+        <div class="xa-kpi">
+          <div class="label">OH &amp; Profit</div>
+          <div class="value">${fmtUsd(ohpAmt)}</div>
+          <div class="sub">${Math.round(XA_OHP*100)}%</div>
+        </div>
+        <div class="xa-kpi">
+          <div class="label">Cost / SF</div>
+          <div class="value">${sqft>0 ? fmtUsd(costPerSqft) : '—'}</div>
+          <div class="sub">${sqft>0 ? sqft+' SF total' : 'enter sqft below'}</div>
+        </div>
+        <div class="xa-kpi">
+          <div class="label">${stateLabel} Labor Mkt</div>
+          <div class="value">${smLabel}</div>
+          <div class="sub">vs NJ baseline</div>
+        </div>
+        <div class="xa-kpi">
+          <div class="label">Rooms Estimated</div>
+          <div class="value">${state.xaRooms.length}</div>
+          <div class="sub">${state.xaRooms.reduce((s,r)=>s+r.lines.length,0)} line items</div>
+        </div>
+      </div>
+
+      <!-- PROJECT DETAILS FORM -->
+      <div class="xa-room-card" style="padding:20px;">
+        <h3 style="margin:0 0 16px;font-size:1rem;">Project Details</h3>
+        <div style="display:grid;grid-template-columns:1fr 1fr;gap:12px;">
+          <div class="field">
+            <label>Link to Project</label>
+            <select class="input" id="xa-meta-projectId">
+              <option value="">— None —</option>
+              ${projOpts}
+            </select>
+          </div>
+          <div class="field">
+            <label>Project Type</label>
+            <select class="input" id="xa-meta-projectType">${typeOpts}</select>
+          </div>
+          <div class="field">
+            <label>Property Address</label>
+            <input class="input" id="xa-meta-address" placeholder="214 Willow Rd, Montclair NJ" value="${meta.address||''}">
+          </div>
+          <div class="field">
+            <label>State</label>
+            <select class="input" id="xa-meta-state">${stateOpts}</select>
+          </div>
+          <div class="field">
+            <label>Total Sqft (user-entered — AI never overwrites)</label>
+            <input class="input" id="xa-meta-sqft" type="number" min="0" placeholder="e.g. 180" value="${meta.sqft||''}">
+          </div>
+          <div class="field">
+            <label>Stories</label>
+            <input class="input" id="xa-meta-stories" type="number" min="1" max="6" value="${meta.stories||'1'}">
+          </div>
+          <div class="field">
+            <label>Year Built</label>
+            <input class="input" id="xa-meta-yearBuilt" type="number" min="1800" max="2030" placeholder="e.g. 1968" value="${meta.yearBuilt||''}">
+          </div>
+          <div class="field">
+            <label>Construction Type</label>
+            <select class="input" id="xa-meta-construction">
+              ${['Wood frame','Masonry','Steel frame','Log','Modular'].map(c=>`<option value="${c}" ${meta.construction===c?'selected':''}>${c}</option>`).join('')}
+            </select>
+          </div>
+          <div class="field">
+            <label>Overall Condition</label>
+            <select class="input" id="xa-meta-condition">${condOpts}</select>
+          </div>
+          <div class="field">
+            <label>Finish Tier</label>
+            <select class="input" id="xa-meta-tier">${tierOpts}</select>
+          </div>
+        </div>
+      </div>
+
+      <!-- DEPRECIATION LEGEND -->
+      <div style="margin-top:16px;background:var(--surface);border:1px solid var(--border);border-radius:10px;padding:14px 16px;">
+        <div style="font-size:11px;font-weight:700;letter-spacing:.06em;text-transform:uppercase;color:var(--text-muted);margin-bottom:8px;">Depreciation by Condition (applied to materials)</div>
+        <div style="display:flex;flex-wrap:wrap;gap:10px;">
+          ${Object.entries(XA_DEPR).map(([k,v])=>`
+            <span style="font-size:12px;padding:4px 10px;border-radius:6px;border:1px solid var(--border);background:${meta.condition===k?'rgba(59,130,246,0.1)':'var(--bg)'};font-weight:${meta.condition===k?700:400}">${k} — ${Math.round(v*100)}%</span>`).join('')}
+        </div>
+      </div>
+    `;
+  };
+
+  // ---------- LEVEL 2: TRADE SUMMARY ----------
+  const renderL2 = () => {
+    const trades = xaTradeSummary();
+    const tradeNames = Object.keys(trades);
+    if (!tradeNames.length) return `
+      <div style="text-align:center;padding:60px 20px;color:var(--text-muted);">
+        <div style="font-size:32px;margin-bottom:8px;">📋</div>
+        <div style="font-weight:700;margin-bottom:4px;">No line items yet</div>
+        <div style="font-size:13px;">Add rooms &amp; line items in Level 3 to see your trade summary.</div>
+      </div>`;
+    const totalRcv = Object.values(trades).reduce((s,t)=>s+t.rcv,0);
+    return `
+      <table class="xa-trade-table">
+        <thead><tr>
+          <th>Trade</th><th>Labor</th><th>Material</th><th>RCV</th><th>ACV</th><th>Depr.</th><th>% of Job</th><th>Visual</th>
+        </tr></thead>
+        <tbody>
+          ${tradeNames.map(name=>{
+            const t=trades[name];
+            const pct=totalRcv>0?Math.round(t.rcv/totalRcv*100):0;
+            return `<tr>
+              <td><strong>${name}</strong></td>
+              <td>${fmtUsd(t.labor)}</td>
+              <td>${fmtUsd(t.mat)}</td>
+              <td><strong>${fmtUsd(t.rcv)}</strong></td>
+              <td>${fmtUsd(t.acv)}</td>
+              <td style="color:var(--text-muted)">${fmtUsd(t.depr)}</td>
+              <td>${pct}%</td>
+              <td style="min-width:80px;"><div class="xa-trade-bar" style="width:${pct}%"></div></td>
+            </tr>`;
+          }).join('')}
+        </tbody>
+        <tfoot>
+          <tr class="total-row">
+            <td>TOTAL (before OH&amp;P)</td>
+            <td>${fmtUsd(Object.values(trades).reduce((s,t)=>s+t.labor,0))}</td>
+            <td>${fmtUsd(Object.values(trades).reduce((s,t)=>s+t.mat,0))}</td>
+            <td>${fmtUsd(totalRcv)}</td>
+            <td>${fmtUsd(Object.values(trades).reduce((s,t)=>s+t.acv,0))}</td>
+            <td>${fmtUsd(Object.values(trades).reduce((s,t)=>s+t.depr,0))}</td>
+            <td>100%</td>
+            <td></td>
+          </tr>
+          <tr class="total-row" style="background:rgba(59,130,246,0.10)">
+            <td>OH&amp;P (${Math.round(XA_OHP*100)}%)</td>
+            <td colspan="6" style="text-align:right;">${fmtUsd(ohpAmt)}</td>
+            <td></td>
+          </tr>
+          <tr class="total-row" style="background:rgba(59,130,246,0.15);font-size:15px;">
+            <td>GRAND TOTAL (RCV)</td>
+            <td colspan="6" style="text-align:right;color:var(--accent);">${fmtUsd(grand)}</td>
+            <td></td>
+          </tr>
+        </tfoot>
+      </table>
+    `;
+  };
+
+  // ---------- LEVEL 3: ROOM BY ROOM ----------
+  const renderL3 = () => {
+    const sm2 = stateInfo(meta.state).laborRate;
+    return `
+      <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:16px;">
+        <div style="font-size:13px;color:var(--text-muted);">${state.xaRooms.length} room${state.xaRooms.length!==1?'s':''} • Click a room to expand line items</div>
+        <button class="btn btn-primary" id="xa-add-room-btn" style="font-size:13px;">+ Add Room</button>
+      </div>
+      ${state.xaRooms.length===0 ? `
+        <div style="text-align:center;padding:60px 20px;background:var(--surface);border:1px dashed var(--border);border-radius:14px;color:var(--text-muted);">
+          <div style="font-size:32px;margin-bottom:8px;">🏠</div>
+          <div style="font-weight:700;margin-bottom:4px;">No rooms yet</div>
+          <div style="font-size:13px;">Tap <strong>+ Add Room</strong> to begin your room-by-room estimate.</div>
+        </div>` :
+        state.xaRooms.map((room,ri) => {
+          const roomRcv = xaRoomTotal(room, sm2);
+          const isOpen = meta.activeRoom === room.id;
+          const autoSqft = (parseFloat(room.l)||0)*(parseFloat(room.w)||0);
+          const wallSqft = room.ceilH ? 2*((parseFloat(room.l)||0)+(parseFloat(room.w)||0))*(parseFloat(room.ceilH)||0) : 0;
+          return `
+          <div class="xa-room-card" data-room-id="${room.id}">
+            <div class="xa-room-head" data-xa-toggle="${room.id}">
+              <div>
+                <div class="xa-room-name">${room.name}</div>
+                <div class="xa-room-dims">
+                  ${room.l&&room.w ? `${room.l}&times;${room.w}${room.ceilH?'&times;'+room.ceilH+'H':''} — Floor: ${autoSqft} SF` : 'No dimensions'}
+                  ${wallSqft ? ` | Walls: ${Math.round(wallSqft)} SF` : ''}
+                  | ${room.lines.length} item${room.lines.length!==1?'s':''}
+                </div>
+              </div>
+              <div style="display:flex;align-items:center;gap:12px;">
+                <div class="xa-room-total">${fmtUsd(roomRcv)}</div>
+                <button class="btn btn-ghost" style="font-size:11px;padding:4px 10px;" data-xa-del-room="${room.id}" onclick="event.stopPropagation()">Remove</button>
+                <span style="color:var(--text-muted);font-size:14px;">${isOpen?'▲':'▼'}</span>
+              </div>
+            </div>
+            ${isOpen ? `
+            <div class="xa-room-body">
+              <!-- Dimension inputs -->
+              <div style="display:grid;grid-template-columns:repeat(3,1fr);gap:8px;padding:12px 16px;border-bottom:1px solid var(--border);">
+                <div class="field" style="margin:0">
+                  <label style="font-size:11px;">Length (ft)</label>
+                  <input class="input" data-xa-dim="l" data-room="${room.id}" value="${room.l||''}" placeholder="12">
+                </div>
+                <div class="field" style="margin:0">
+                  <label style="font-size:11px;">Width (ft)</label>
+                  <input class="input" data-xa-dim="w" data-room="${room.id}" value="${room.w||''}" placeholder="10">
+                </div>
+                <div class="field" style="margin:0">
+                  <label style="font-size:11px;">Ceiling Ht (ft)</label>
+                  <input class="input" data-xa-dim="ceilH" data-room="${room.id}" value="${room.ceilH||''}" placeholder="9">
+                </div>
+              </div>
+              <!-- Scope checkboxes -->
+              <div style="padding:12px 16px;border-bottom:1px solid var(--border);">
+                <div style="font-size:11px;font-weight:700;text-transform:uppercase;letter-spacing:.06em;color:var(--text-muted);margin-bottom:8px;">Quick-add trade scope</div>
+                <div class="xa-scope-grid">
+                  ${Object.keys(XA_LINES).map(trade=>{
+                    const has = room.lines.some(l=>l.trade===trade);
+                    return `<div class="xa-scope-item ${has?'selected':''}" data-xa-scope="${trade}" data-room="${room.id}">
+                      <div class="xa-scope-check"></div>${trade}
+                    </div>`;
+                  }).join('')}
+                </div>
+              </div>
+              <!-- Line items table -->
+              <div style="padding:0 0 12px;">
+                ${room.lines.length===0 ? `<div style="padding:20px;text-align:center;color:var(--text-muted);font-size:13px;">No line items. Use the scope toggles above to add trade items.</div>` : `
+                <div style="overflow-x:auto;">
+                <table class="xa-line-table">
+                  <thead><tr>
+                    <th>Code</th><th style="min-width:180px;">Description</th><th>Unit</th><th>Qty</th>
+                    <th>Labor/Unit</th><th>Mat/Unit</th><th>Labor $</th><th>Material $</th>
+                    <th>RCV</th><th>Depr.</th><th>ACV</th><th></th>
+                  </tr></thead>
+                  <tbody>
+                    ${room.lines.map((l,li)=>{
+                      const cond = meta.condition||'Average';
+                      const c=xaCalcLine(l,sm2,cond);
+                      return `<tr>
+                        <td style="font-size:10px;color:var(--text-muted);white-space:nowrap;">${l.code}</td>
+                        <td>${l.desc}</td>
+                        <td>${l.unit}</td>
+                        <td><input class="input" style="width:60px;padding:4px 6px;font-size:12px;" data-xa-qty data-room="${room.id}" data-li="${li}" value="${l.qty||1}"></td>
+                        <td>${fmtUsdExact(l.laborUnit)}</td>
+                        <td>${fmtUsdExact(l.matUnit)}</td>
+                        <td>${fmtUsd(c.labor)}</td>
+                        <td>${fmtUsd(c.mat)}</td>
+                        <td><strong>${fmtUsd(c.rcv)}</strong></td>
+                        <td style="color:var(--text-muted)">${fmtUsd(c.depr)}</td>
+                        <td>${fmtUsd(c.acv)}</td>
+                        <td><button class="btn btn-ghost" style="font-size:10px;padding:2px 8px;" data-xa-del-line data-room="${room.id}" data-li="${li}">✕</button></td>
+                      </tr>`;
+                    }).join('')}
+                  </tbody>
+                </table>
+                </div>`}
+                <div style="padding:8px 16px;">
+                  <button class="btn btn-ghost" style="font-size:12px;" data-xa-add-line data-room="${room.id}">+ Add custom line item</button>
+                </div>
+              </div>
+            </div>` : ''}
+          </div>`;
+        }).join('')
+      }
+    `;
+  };
+
+  // ---------- LEVEL 4: LINE ITEMS (Full Xactimate view) ----------
+  const renderL4 = () => {
+    const sm4 = stateInfo(meta.state).laborRate;
+    const cond = meta.condition || 'Average';
+    const deprRate = XA_DEPR[cond] || 0.15;
+    let allLines = [];
+    state.xaRooms.forEach(room => {
+      room.lines.forEach(l => {
+        const c = xaCalcLine(l, sm4, cond);
+        allLines.push({ ...l, roomName: room.name, ...c });
+      });
+    });
+    if (!allLines.length) return `
+      <div style="text-align:center;padding:60px 20px;color:var(--text-muted);">
+        <div style="font-size:32px;margin-bottom:8px;">📄</div>
+        <div style="font-weight:700;margin-bottom:4px;">No line items yet</div>
+        <div style="font-size:13px;">Add rooms &amp; scope in Level 3 to generate your Xactimate-style breakdown.</div>
+      </div>`;
+    const totL = allLines.reduce((s,l)=>s+l.labor,0);
+    const totM = allLines.reduce((s,l)=>s+l.mat,0);
+    const totR = allLines.reduce((s,l)=>s+l.rcv,0);
+    const totD = allLines.reduce((s,l)=>s+l.depr,0);
+    const totA = allLines.reduce((s,l)=>s+l.acv,0);
+    return `
+      <div style="overflow-x:auto;">
+      <table class="xa-line-table">
+        <thead><tr>
+          <th>Room</th><th>Code</th><th style="min-width:200px;">Description</th><th>Unit</th><th>Qty</th>
+          <th>Labor/U</th><th>Mat/U</th><th>Labor $</th><th>Material $</th>
+          <th>RCV</th><th>Depreciation</th><th>ACV</th>
+        </tr></thead>
+        <tbody>
+          ${allLines.map(l=>`<tr>
+            <td style="font-size:11px;color:var(--text-muted);white-space:nowrap;">${l.roomName}</td>
+            <td style="font-size:10px;color:var(--text-muted);">${l.code}</td>
+            <td>${l.desc}</td>
+            <td>${l.unit}</td>
+            <td>${l.qty||1}</td>
+            <td>${fmtUsdExact(l.laborUnit)}</td>
+            <td>${fmtUsdExact(l.matUnit)}</td>
+            <td>${fmtUsd(l.labor)}</td>
+            <td>${fmtUsd(l.mat)}</td>
+            <td><strong>${fmtUsd(l.rcv)}</strong></td>
+            <td style="color:var(--text-muted)">${fmtUsd(l.depr)}</td>
+            <td>${fmtUsd(l.acv)}</td>
+          </tr>`).join('')}
+        </tbody>
+        <tfoot>
+          <tr class="total-row">
+            <td colspan="7">Subtotal — Base Cost</td>
+            <td>${fmtUsd(totL)}</td>
+            <td>${fmtUsd(totM)}</td>
+            <td>${fmtUsd(totR)}</td>
+            <td>${fmtUsd(totD)}</td>
+            <td>${fmtUsd(totA)}</td>
+          </tr>
+          <tr class="total-row">
+            <td colspan="9">Overhead &amp; Profit (${Math.round(XA_OHP*100)}%)</td>
+            <td>${fmtUsd(ohpAmt)}</td>
+            <td></td>
+            <td>${fmtUsd(totA * XA_OHP)}</td>
+          </tr>
+          <tr class="total-row" style="font-size:15px;color:var(--accent);">
+            <td colspan="9">GRAND TOTAL (RCV with OH&amp;P)</td>
+            <td>${fmtUsd(grand)}</td>
+            <td></td>
+            <td>${fmtUsd(totA + totA * XA_OHP)}</td>
+          </tr>
+        </tfoot>
+      </table>
+      </div>
+      <!-- Footer summary -->
+      <div class="xa-summary-footer">
+        <h3>Estimate Summary — ${meta.projectType||'Project'}</h3>
+        <div class="xa-summary-line"><span>Property</span><span>${meta.address||'—'}</span></div>
+        <div class="xa-summary-line"><span>State / Market</span><span>${stateInfo(meta.state).name} (labor ×${stateInfo(meta.state).laborRate.toFixed(2)})</span></div>
+        <div class="xa-summary-line"><span>Condition</span><span>${cond} — ${Math.round(deprRate*100)}% material depreciation</span></div>
+        <div class="xa-summary-line"><span>Finish Tier</span><span>${TIERS[meta.tier]?.name||meta.tier}</span></div>
+        <div class="xa-summary-line"><span>Rooms Estimated</span><span>${state.xaRooms.length}</span></div>
+        <div class="xa-summary-line"><span>Total Line Items</span><span>${allLines.length}</span></div>
+        <div class="xa-summary-line"><span>Base Labor</span><span>${fmtUsd(totL)}</span></div>
+        <div class="xa-summary-line"><span>Base Material</span><span>${fmtUsd(totM)}</span></div>
+        <div class="xa-summary-line"><span>Overhead &amp; Profit (${Math.round(XA_OHP*100)}%)</span><span>${fmtUsd(ohpAmt)}</span></div>
+        <div class="xa-summary-line total"><span>Grand Total — RCV</span><span>${fmtUsd(grand)}</span></div>
+        ${sqft>0 ? `<div class="xa-summary-line"><span>Cost per SF</span><span>${fmtUsd(costPerSqft)}/SF</span></div>` : ''}
+        <div style="margin-top:14px;font-size:11px;color:var(--text-muted);line-height:1.5;">
+          Prepared by ${state.settings.company} · ${state.settings.owner} · ${new Date().toLocaleDateString('en-US',{month:'long',day:'numeric',year:'numeric'})}<br>
+          NE regional rates based on RSMeans / Xactimate 2024 data. Labor market adjustments applied per state. All quantities are estimates; field verification required before contract execution.
+        </div>
+      </div>
+    `;
+  };
+
+  // Which level to render
+  let levelContent = '';
+  if (level === 1) levelContent = renderL1();
+  else if (level === 2) levelContent = renderL2();
+  else if (level === 3) levelContent = renderL3();
+  else if (level === 4) levelContent = renderL4();
+
+  return `
+    <div class="xa-shell">
+      <div class="page-head">
+        <div>
+          <h2>Room-by-Room Estimator</h2>
+          <div class="sub">Xactimate-style · NE regional pricing · RCV / ACV / Depreciation</div>
+        </div>
+      </div>
+      ${levelTabs}
+      ${levelContent}
+    </div>
+  `;
+}
+
+function bindXactimateEvents() {
+  // Level tab buttons
+  document.querySelectorAll('[data-xa-level]').forEach(btn => {
+    btn.addEventListener('click', () => {
+      state.xaMeta.activeLevel = parseInt(btn.dataset.xaLevel);
+      saveState(); render();
+    });
+  });
+
+  // Meta form fields
+  ['projectId','projectType','address','state','sqft','stories','yearBuilt','construction','condition','tier'].forEach(field => {
+    const el = document.getElementById('xa-meta-' + field);
+    if (!el) return;
+    el.addEventListener('change', () => {
+      state.xaMeta[field] = el.value;
+      // if linked to a project, auto-fill address/state/sqft from project
+      if (field === 'projectId' && el.value) {
+        const p = state.projects.find(x => x.id === el.value);
+        if (p) {
+          state.xaMeta.address = p.address || state.xaMeta.address;
+          state.xaMeta.state = p.state || state.xaMeta.state;
+          // NEVER overwrite sqft if user has entered a value
+          if (!state.xaMeta.sqft) state.xaMeta.sqft = String(p.sqft || '');
+          state.xaMeta.projectType = p.projectType || state.xaMeta.projectType;
+          state.xaMeta.tier = p.tier || state.xaMeta.tier;
+        }
+      }
+      saveState(); render();
+    });
+    if (el.tagName === 'INPUT') {
+      el.addEventListener('input', () => {
+        state.xaMeta[field] = el.value;
+        saveState();
+        // re-render KPIs without full re-render for responsiveness
+        if (field !== 'sqft') return;
+        // re-render to update cost/sf KPI
+        render();
+      });
+    }
+  });
+
+  // Add room button
+  const addRoomBtn = document.getElementById('xa-add-room-btn');
+  if (addRoomBtn) {
+    addRoomBtn.addEventListener('click', () => {
+      const ROOM_DEFAULTS = ['Living Room','Kitchen','Master Bath','Bathroom 2','Bedroom 1','Bedroom 2','Bedroom 3','Basement','Dining Room','Hallway','Laundry Room','Garage','Exterior','Other'];
+      const used = state.xaRooms.map(r => r.name);
+      const next = ROOM_DEFAULTS.find(n => !used.includes(n)) || 'Room ' + (state.xaRooms.length + 1);
+      const room = { id: 'r' + Date.now(), name: next, l: '', w: '', ceilH: '', condition: state.xaMeta.condition || 'Average', lines: [] };
+      state.xaRooms.push(room);
+      state.xaMeta.activeRoom = room.id;
+      state.xaMeta.activeLevel = 3;
+      saveState(); render();
+    });
+  }
+
+  // Toggle room expand
+  document.querySelectorAll('[data-xa-toggle]').forEach(el => {
+    el.addEventListener('click', () => {
+      const rid = el.dataset.xaToggle;
+      state.xaMeta.activeRoom = state.xaMeta.activeRoom === rid ? null : rid;
+      saveState(); render();
+    });
+  });
+
+  // Delete room
+  document.querySelectorAll('[data-xa-del-room]').forEach(btn => {
+    btn.addEventListener('click', () => {
+      const rid = btn.dataset.xaDelRoom;
+      state.xaRooms = state.xaRooms.filter(r => r.id !== rid);
+      if (state.xaMeta.activeRoom === rid) state.xaMeta.activeRoom = null;
+      saveState(); render();
+    });
+  });
+
+  // Room dimension inputs
+  document.querySelectorAll('[data-xa-dim]').forEach(input => {
+    input.addEventListener('change', () => {
+      const rid = input.dataset.room;
+      const dim = input.dataset.xaDim;
+      const room = state.xaRooms.find(r => r.id === rid);
+      if (room) { room[dim] = input.value; saveState(); render(); }
+    });
+  });
+
+  // Scope toggles — add/remove all lines for a trade
+  document.querySelectorAll('[data-xa-scope]').forEach(el => {
+    el.addEventListener('click', () => {
+      const trade = el.dataset.xaScope;
+      const rid = el.dataset.room;
+      const room = state.xaRooms.find(r => r.id === rid);
+      if (!room) return;
+      const hasAny = room.lines.some(l => l.trade === trade);
+      if (hasAny) {
+        // remove all lines for this trade
+        room.lines = room.lines.filter(l => l.trade !== trade);
+      } else {
+        // add default lines for this trade
+        const tradeLines = XA_LINES[trade] || [];
+        const newLines = tradeLines.map(tl => ({
+          ...tl,
+          trade,
+          qty: 1,
+        }));
+        room.lines = room.lines.concat(newLines);
+      }
+      saveState(); render();
+    });
+  });
+
+  // Qty inputs
+  document.querySelectorAll('[data-xa-qty]').forEach(input => {
+    input.addEventListener('change', () => {
+      const rid = input.dataset.room;
+      const li = parseInt(input.dataset.li);
+      const room = state.xaRooms.find(r => r.id === rid);
+      if (room && room.lines[li] !== undefined) {
+        room.lines[li].qty = parseFloat(input.value) || 1;
+        saveState(); render();
+      }
+    });
+  });
+
+  // Delete line item
+  document.querySelectorAll('[data-xa-del-line]').forEach(btn => {
+    btn.addEventListener('click', () => {
+      const rid = btn.dataset.room;
+      const li = parseInt(btn.dataset.li);
+      const room = state.xaRooms.find(r => r.id === rid);
+      if (room) { room.lines.splice(li, 1); saveState(); render(); }
+    });
+  });
+
+  // Add custom line item
+  document.querySelectorAll('[data-xa-add-line]').forEach(btn => {
+    btn.addEventListener('click', () => {
+      const rid = btn.dataset.room;
+      const room = state.xaRooms.find(r => r.id === rid);
+      if (!room) return;
+      room.lines.push({
+        code: 'CUST' + String(room.lines.length + 1).padStart(3,'0'),
+        desc: 'Custom line item',
+        unit: 'SF',
+        trade: 'Other',
+        qty: 1,
+        laborUnit: 0,
+        matUnit: 0,
+      });
+      saveState(); render();
+    });
+  });
+
+  // PDF export
+  const pdfBtn = document.getElementById('xa-pdf-btn');
+  if (pdfBtn) {
+    pdfBtn.addEventListener('click', () => {
+      if (!state.xaRooms.length) { showToast('Add rooms before exporting PDF'); return; }
+      xaExportPDF();
+    });
+  }
+}
+
+function xaExportPDF() {
+  if (typeof window.jspdf === 'undefined' && typeof window.jsPDF === 'undefined') {
+    showToast('PDF library not loaded — try again in a moment');
+    return;
+  }
+  const { jsPDF } = window.jspdf || window;
+  const doc = new jsPDF({ orientation:'portrait', unit:'pt', format:'letter' });
+  const meta = state.xaMeta;
+  const sm = stateInfo(meta.state).laborRate;
+  const cond = meta.condition || 'Average';
+  const grand = xaGrandTotal();
+  const base = grand / (1 + XA_OHP);
+  const ohpAmt = grand - base;
+  const W = doc.internal.pageSize.getWidth();
+  const margin = 40;
+  let y = 60;
+
+  // Header
+  doc.setFillColor(30,64,175);
+  doc.rect(0,0,W,50,'F');
+  doc.setTextColor(255,255,255);
+  doc.setFontSize(16); doc.setFont('helvetica','bold');
+  doc.text('ROOM-BY-ROOM ESTIMATE', margin, 30);
+  doc.setFontSize(9); doc.setFont('helvetica','normal');
+  doc.text(`${state.settings.company}  ·  ${state.settings.owner}  ·  ${new Date().toLocaleDateString()}`, margin, 44);
+  doc.text('Xactimate-Style · NE Regional Pricing', W - margin, 44, {align:'right'});
+
+  doc.setTextColor(30,30,30);
+
+  // Project info block
+  y = 70;
+  doc.setFontSize(10); doc.setFont('helvetica','bold');
+  doc.text('PROJECT DETAILS', margin, y); y += 16;
+  doc.setFont('helvetica','normal'); doc.setFontSize(9);
+  const details = [
+    [`Type`, meta.projectType||'—'],
+    [`Address`, meta.address||'—'],
+    [`State / Market`, `${stateInfo(meta.state).name} (labor ×${stateInfo(meta.state).laborRate.toFixed(2)})`],
+    [`Condition`, `${cond} (${Math.round((XA_DEPR[cond]||0.15)*100)}% mat. depr.)`],
+    [`Tier`, TIERS[meta.tier]?.name||meta.tier],
+    [`Total SF`, meta.sqft||'—'],
+    [`Stories`, meta.stories||'—'],
+    [`Year Built`, meta.yearBuilt||'—'],
+  ];
+  details.forEach(([k,v]) => {
+    doc.setFont('helvetica','bold'); doc.text(k + ':', margin, y);
+    doc.setFont('helvetica','normal'); doc.text(String(v), margin + 110, y);
+    y += 13;
+  });
+
+  // KPIs
+  y += 8;
+  doc.setDrawColor(200,210,230); doc.setLineWidth(0.5);
+  doc.line(margin, y, W - margin, y); y += 14;
+  doc.setFontSize(10); doc.setFont('helvetica','bold');
+  doc.text('ESTIMATE SUMMARY', margin, y); y += 14;
+  doc.setFontSize(9); doc.setFont('helvetica','normal');
+  [[`Base Cost (Labor + Material)`, base],[`Overhead & Profit (${Math.round(XA_OHP*100)}%)`, ohpAmt],[`Grand Total — RCV`, grand]].forEach(([k,v]) => {
+    doc.setFont('helvetica', k.includes('Grand')?'bold':'normal');
+    doc.text(k, margin, y);
+    doc.text('$' + Math.round(v).toLocaleString('en-US'), W - margin, y, {align:'right'});
+    y += 13;
+  });
+
+  y += 10;
+  doc.line(margin, y, W - margin, y); y += 14;
+
+  // Room-by-room sections
+  state.xaRooms.forEach(room => {
+    const roomRcv = xaRoomTotal(room, sm);
+    if (y > 680) { doc.addPage(); y = 50; }
+    doc.setFontSize(11); doc.setFont('helvetica','bold');
+    doc.setFillColor(240,244,255);
+    doc.rect(margin, y-10, W-2*margin, 16,'F');
+    doc.text(room.name.toUpperCase(), margin+4, y);
+    doc.text('$' + Math.round(roomRcv).toLocaleString('en-US'), W-margin, y, {align:'right'});
+    y += 16;
+
+    if (room.l && room.w) {
+      doc.setFontSize(8); doc.setFont('helvetica','normal');
+      const fl = (parseFloat(room.l)||0)*(parseFloat(room.w)||0);
+      doc.text(`Dimensions: ${room.l}×${room.w}${room.ceilH?' ×'+room.ceilH+'H':''} ft  |  Floor: ${fl} SF`, margin+4, y);
+      y += 12;
+    }
+
+    // Column headers
+    doc.setFontSize(7.5); doc.setFont('helvetica','bold');
+    const cols = [margin+4, margin+180, margin+210, margin+240, margin+290, margin+330, margin+370, margin+415];
+    ['Description','Unit','Qty','Labor $','Material $','RCV','Depr.','ACV'].forEach((h,i) => {
+      doc.text(h, cols[i], y, {align: i>1?'right':'left'});
+    });
+    y += 10;
+    doc.setLineWidth(0.3); doc.line(margin,y,W-margin,y); y+=6;
+
+    room.lines.forEach(l => {
+      if (y > 700) { doc.addPage(); y = 50; }
+      const c = xaCalcLine(l, sm, cond);
+      doc.setFontSize(7.5); doc.setFont('helvetica','normal');
+      const descTrunc = l.desc.length > 34 ? l.desc.slice(0,33)+'…' : l.desc;
+      doc.text(descTrunc, cols[0], y);
+      doc.text(l.unit, cols[1], y, {align:'right'});
+      doc.text(String(l.qty||1), cols[2], y, {align:'right'});
+      doc.text('$'+Math.round(c.labor).toLocaleString('en-US'), cols[3], y, {align:'right'});
+      doc.text('$'+Math.round(c.mat).toLocaleString('en-US'), cols[4], y, {align:'right'});
+      doc.text('$'+Math.round(c.rcv).toLocaleString('en-US'), cols[5], y, {align:'right'});
+      doc.text('$'+Math.round(c.depr).toLocaleString('en-US'), cols[6], y, {align:'right'});
+      doc.text('$'+Math.round(c.acv).toLocaleString('en-US'), cols[7], y, {align:'right'});
+      y += 11;
+    });
+    y += 8;
+  });
+
+  // Footer
+  if (y > 680) { doc.addPage(); y = 50; }
+  y += 6;
+  doc.setLineWidth(0.5); doc.line(margin,y,W-margin,y); y += 12;
+  doc.setFontSize(7.5); doc.setFont('helvetica','normal'); doc.setTextColor(120,120,120);
+  doc.text(`NE regional rates based on RSMeans / Xactimate 2024 data. Labor market adjustments applied per state. All quantities are estimates; field verification required before contract execution.`, margin, y, {maxWidth: W-2*margin});
+
+  const fname = `Xactimate-Estimate-${meta.address ? meta.address.replace(/[^a-z0-9]/gi,'-').slice(0,30) : 'Project'}-${new Date().toISOString().slice(0,10)}.pdf`;
+  doc.save(fname);
+  showToast('PDF exported: ' + fname);
+}
+
 function renderSettings() {
   const s = state.settings;
   return `
@@ -5563,6 +6486,7 @@ function bindEvents() {
   if (currentView.name === 'lookahead') bindLookaheadEvents();
   // Weekly Costs
   if (currentView.name === 'weeklycost') bindWeeklyCostEvents();
+  if (currentView.name === 'xactimate') bindXactimateEvents();
 }
 
 // ---------- SIGNATURES ----------
