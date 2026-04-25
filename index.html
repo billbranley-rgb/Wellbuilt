@@ -2272,6 +2272,10 @@ window.fetch = async function(url, opts) {
   }
   return _realFetch(url, opts);
 };
+// Detect if running on GitHub Pages (AI calls blocked by ad blockers there)
+const IS_GITHUB_PAGES = typeof window !== 'undefined' && window.location && window.location.hostname === 'billbranley-rgb.github.io';
+const PERPLEXITY_APP_URL = 'https://www.perplexity.ai/computer/a/kunstruction1-deploy-LrYdBjxSTEeL75DkRzo5Aw';
+
 async function _oai(messages, max_tokens) {
   max_tokens = max_tokens || 900;
   // Allow user-provided key override from Settings
@@ -2290,18 +2294,53 @@ async function _oai(messages, max_tokens) {
       body: JSON.stringify({model:'gpt-4o-mini', messages, max_tokens, response_format:{type:'json_object'}})
     });
   } catch(netErr) {
-    // Network-level failure (ad blocker, offline, CORS, etc.)
-    throw new Error('AI request blocked — check network/ad blocker, or try the Perplexity link instead of GitHub Pages.');
+    // Network-level failure — on GitHub Pages this is almost always an ad blocker
+    if (IS_GITHUB_PAGES) {
+      throw new _AiBlockedError();
+    }
+    throw new Error('Network error — check your connection and try again.');
   }
   const d = await res.json();
   if (!res.ok) {
     const msg = (d.error&&d.error.message) || 'OpenAI error ' + res.status;
-    // Surface quota / auth errors clearly
     if (res.status === 401) throw new Error('OpenAI key invalid or expired');
     if (res.status === 429) throw new Error('OpenAI quota reached — try again in a moment');
     throw new Error(msg);
   }
   return JSON.parse(d.choices[0].message.content);
+}
+
+// Special error class for ad-blocker blocks on GitHub Pages
+function _AiBlockedError() {
+  this.name = 'AiBlockedError';
+  this.isAiBlocked = true;
+  this.message = '__AI_BLOCKED__';
+}
+_AiBlockedError.prototype = Object.create(Error.prototype);
+
+// Show the "AI blocked" banner with a Perplexity link
+function showAiBlockedBanner(containerSelector) {
+  // Remove any existing banner
+  document.querySelectorAll('.ai-blocked-banner').forEach(el => el.remove());
+  const banner = document.createElement('div');
+  banner.className = 'ai-blocked-banner';
+  banner.style.cssText = 'position:fixed;bottom:20px;left:50%;transform:translateX(-50%);z-index:9999;background:#1e3a8a;color:#fff;border-radius:14px;padding:16px 20px;max-width:460px;width:calc(100% - 40px);box-shadow:0 8px 32px rgba(0,0,0,.35);font-size:13px;line-height:1.5;';
+  banner.innerHTML = `
+    <div style="display:flex;gap:12px;align-items:flex-start;">
+      <div style="font-size:22px;flex-shrink:0;">🛡️</div>
+      <div style="flex:1;">
+        <div style="font-weight:700;font-size:14px;margin-bottom:4px;">AI blocked by ad blocker</div>
+        <div style="opacity:.85;margin-bottom:12px;">Your browser is blocking calls to OpenAI. AI features work fully on the Perplexity version of the app (no ad blocker needed).</div>
+        <div style="display:flex;gap:8px;flex-wrap:wrap;">
+          <a href="${PERPLEXITY_APP_URL}" target="_blank" style="background:#fff;color:#1e3a8a;font-weight:700;padding:8px 16px;border-radius:8px;text-decoration:none;font-size:13px;">Open Perplexity App ↗</a>
+          <button onclick="this.closest('.ai-blocked-banner').remove()" style="background:rgba(255,255,255,.15);color:#fff;border:none;cursor:pointer;padding:8px 14px;border-radius:8px;font-size:13px;">Dismiss</button>
+        </div>
+      </div>
+    </div>
+  `;
+  document.body.appendChild(banner);
+  // Auto-dismiss after 12 sec
+  setTimeout(() => { if (banner.parentNode) banner.remove(); }, 12000);
 }
 async function _handleApi(ep, opts) {
   const fd = opts && opts.body;
@@ -2417,6 +2456,7 @@ async function runIntakeAutofill() {
     mergeIntakeData(intakeClean);
     intakeExtracted = intake;
   } catch (e) {
+    if (e.isAiBlocked) { showAiBlockedBanner(); intakeExtracting = false; render(); return; }
     intakeExtractError = 'Auto-fill failed: ' + (e.message || e);
   }
 
@@ -2431,7 +2471,8 @@ async function runIntakeAutofill() {
       wizard.sqftSource = 'plan unreadable — enter manually';
     }
   } catch (e) {
-    measureState = { running: false, result: null, error: 'Measurement failed: ' + (e.message || e) };
+    if (e.isAiBlocked) { showAiBlockedBanner(); }
+    measureState = { running: false, result: null, error: e.isAiBlocked ? null : 'Measurement failed: ' + (e.message || e) };
   }
 
   intakeExtracting = false;
@@ -2485,6 +2526,7 @@ async function runFullTakeoff() {
       // Not fatal — user can generate manually from the Schedule tab later.
     }
   } catch (e) {
+    if (e.isAiBlocked) { showAiBlockedBanner(); takeoffRunning = false; render(); return; }
     intakeExtractError = 'Takeoff failed: ' + (e.message || e);
   }
   takeoffRunning = false;
@@ -2515,7 +2557,8 @@ async function runMeasureSqft(files, scopeNotes) {
       showToast('Could not read plan — enter SF manually');
     }
   } catch (e) {
-    measureState = { running: false, result: null, error: e.message || String(e) };
+    if (e.isAiBlocked) { showAiBlockedBanner(); measureState = { running: false, result: null, error: null }; }
+    else { measureState = { running: false, result: null, error: e.message || String(e) }; }
   }
   render();
 }
@@ -2719,6 +2762,7 @@ async function runTakeoff() {
     render();
   } catch (e) {
     statusEl.style.display = 'none';
+    if (e.isAiBlocked) { showAiBlockedBanner(); if (btn) { btn.disabled = false; btn.textContent = 'Run AI Takeoff'; btn.style.opacity = '1'; } return; }
     errorEl.style.display = 'block';
     errorEl.textContent = 'Takeoff failed: ' + (e.message || e) + '. Try again or reduce file sizes.';
     if (btn) { btn.disabled = false; btn.textContent = 'Run AI Takeoff'; btn.style.opacity = '1'; }
