@@ -1552,8 +1552,21 @@ function buildEstimate(project, takeoff) {
 
   // If we have an AI takeoff, use its real quantities as the source of truth
   if (takeoff && takeoff.materials && takeoff.labor) {
-    const materials = takeoff.totals?.materials ?? takeoff.materials.reduce((s,m) => s + (Number(m.total)||0), 0);
-    const labor = takeoff.totals?.labor ?? takeoff.labor.reduce((s,l) => s + (Number(l.total)||0), 0);
+    // Normalize: AI may return strings instead of numbers — coerce everything
+    const normNum = v => { const n = Number(String(v).replace(/[$,]/g,'')); return isFinite(n) ? n : 0; };
+
+    // Sum materials — handle both totals.materials and summing line items
+    const rawMat = takeoff.totals?.materials ?? takeoff.totals?.material ?? null;
+    const materials = rawMat != null ? normNum(rawMat)
+      : takeoff.materials.reduce((s,m) => s + normNum(m.total), 0);
+
+    const rawLab = takeoff.totals?.labor ?? null;
+    const labor = rawLab != null ? normNum(rawLab)
+      : takeoff.labor.reduce((s,l) => s + normNum(l.total), 0);
+
+    // If AI gave us a grand total directly, use it as the anchor
+    const aiGrand = takeoff.totals?.grand ?? takeoff.totals?.grandTotal ?? null;
+
     const subs = (materials + labor) * 0.06;
     const misc = (materials + labor) * 0.04;
     const base = materials + labor + subs + misc;
@@ -1565,30 +1578,39 @@ function buildEstimate(project, takeoff) {
     // Convert takeoff materials + labor into line items
     const lineItems = [];
     takeoff.materials.forEach(m => {
+      const tot = normNum(m.total);
+      const qty = normNum(m.qty) || 1;
+      // AI may return unitPrice or unit_cost
+      const up = normNum(m.unitPrice || m.unit_cost) || (tot / qty);
       lineItems.push({
         category: 'Materials',
         name: `${m.category || 'Material'} — ${m.item || ''}`.trim(),
-        qty: Number(m.qty) || 1,
-        unit: m.unit || 'ea',
-        unitPrice: Number(m.unit_cost) || (Number(m.total) / Math.max(1, Number(m.qty) || 1)),
-        total: Number(m.total) || 0,
+        qty, unit: m.unit || 'ea', unitPrice: up, total: tot,
       });
     });
     takeoff.labor.forEach(l => {
+      const tot = normNum(l.total);
+      const hrs = normNum(l.hours) || 1;
+      const rate = normNum(l.rate) || (tot / hrs);
       lineItems.push({
         category: 'Labor',
         name: `${l.trade || 'Labor'} — ${l.task || ''}`.trim(),
-        qty: Number(l.hours) || 1,
-        unit: 'hrs',
-        unitPrice: Number(l.rate) || 0,
-        total: Number(l.total) || 0,
+        qty: hrs, unit: 'hrs', unitPrice: rate, total: tot,
       });
     });
     lineItems.push({ category: 'Subcontractors', name: 'Specialty trades buffer', qty: 1, unit: 'lot', unitPrice: subs, total: subs });
     lineItems.push({ category: 'Other', name: 'Disposal, equipment rental, cleanup', qty: 1, unit: 'lot', unitPrice: misc, total: misc });
 
     const subtotal = lineItems.reduce((s, l) => s + l.total, 0);
-    const grandTotal = subtotal + ohpAmt + permitAmt;
+    // If our summed subtotal is suspiciously zero but AI gave us a grand total, use it directly
+    let grandTotal = subtotal + ohpAmt + permitAmt;
+    if (grandTotal < 1000 && aiGrand && normNum(aiGrand) > 1000) {
+      grandTotal = normNum(aiGrand);
+    }
+
+    // Also update project sqft from takeoff if it was 0 or missing
+    // (never overwrite a user-entered value — only fill blanks)
+    // Note: sqft update is caller's responsibility per the zero-overwrite rule
 
     return {
       sqft: project.sqft,
@@ -2857,6 +2879,11 @@ async function runTakeoff() {
       const p = state.projects.find(x => x.id === takeoffCtx);
       if (p) {
         p.takeoff = data;
+        // If plans contained sqft and project has none, fill it in (never overwrite user entry)
+        const toSqft = Number(document.getElementById('to-sqft')?.value || 0);
+        if (toSqft > 0 && (!p.sqft || p.sqft === 0)) p.sqft = toSqft;
+        // Rebuild the stored estimate from the fresh takeoff so grandTotal is correct
+        p.estimate = buildEstimate(p, data);
         saveState();
       }
     }
