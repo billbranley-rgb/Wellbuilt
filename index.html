@@ -4643,16 +4643,15 @@ function bindFieldModeEvents() {
     });
   }
 
-  // Photo input — resize first (raw camera photos are too large for innerHTML), then buffer all before re-render
-  ov.querySelector('#field-photo-input')?.addEventListener('change', async e => {
+  // Photo input — use blob URLs (works in sandboxed iframes, no canvas taint issues)
+  ov.querySelector('#field-photo-input')?.addEventListener('change', e => {
     const files = Array.from(e.target.files||[]);
     if (!files.length) return;
-    for (const file of files) {
-      try {
-        const dataUrl = await fileToResizedDataUrl(file, 1200, 0.80);
-        fs.photos.push({ dataUrl, name: file.name });
-      } catch(err) { showToast('Could not load photo: ' + file.name); }
-    }
+    files.forEach(file => {
+      // Revoke old blob URLs to avoid memory leaks then create fresh one
+      const blobUrl = URL.createObjectURL(file);
+      fs.photos.push({ dataUrl: blobUrl, name: file.name, isBlob: true });
+    });
     renderFieldMode();
     bindFieldModeEvents();
   });
@@ -4666,16 +4665,27 @@ function bindFieldModeEvents() {
   ov.querySelector('#field-log-text')?.addEventListener('input', e => { fs.logText = e.target.value; });
 
   // Submit log
-  ov.querySelector('#field-submit-btn')?.addEventListener('click', () => {
+  ov.querySelector('#field-submit-btn')?.addEventListener('click', async () => {
     const logEl = ov.querySelector('#field-log-text');
     if (logEl) fs.logText = logEl.value;
     const proj = state.projects.find(p=>p.id===fs.jobId);
     if (!proj) return;
     if (!proj.logs) proj.logs = [];
-    const entry = { id:'log-'+Date.now(), date: new Date().toLocaleDateString('en-US',{weekday:'short',month:'short',day:'numeric'}), text: fs.logText||'(No notes)', author: state.settings?.company||'Field', gps: fs.gps?fs.gpsLabel:null, photos: fs.photos.map(p=>p.dataUrl) };
+    // Convert any blob URLs to base64 for persistent storage
+    const resolvedPhotos = await Promise.all(fs.photos.map(async ph => {
+      if (ph.isBlob) {
+        try {
+          const dataUrl = await fileToResizedDataUrl(await fetch(ph.dataUrl).then(r=>r.blob()), 1200, 0.80);
+          URL.revokeObjectURL(ph.dataUrl);
+          return { dataUrl, name: ph.name };
+        } catch(e) { return ph; }
+      }
+      return ph;
+    }));
+    const entry = { id:'log-'+Date.now(), date: new Date().toLocaleDateString('en-US',{weekday:'short',month:'short',day:'numeric'}), text: fs.logText||'(No notes)', author: state.settings?.company||'Field', gps: fs.gps?fs.gpsLabel:null, photos: resolvedPhotos.map(p=>p.dataUrl) };
     proj.logs.unshift(entry);
     if (!proj.photos) proj.photos=[];
-    fs.photos.forEach((ph,i)=>proj.photos.unshift({id:'fp-'+Date.now()+i,src:ph.dataUrl,caption:`Field photo — ${entry.date}`,stage:proj.phase||'Field',date:entry.date}));
+    resolvedPhotos.forEach((ph,i)=>proj.photos.unshift({id:'fp-'+Date.now()+i,src:ph.dataUrl,caption:`Field photo — ${entry.date}`,stage:proj.phase||'Field',date:entry.date}));
     fs.photos=[]; fs.logText='';
     saveState(); renderFieldMode(); bindFieldModeEvents();
   });
