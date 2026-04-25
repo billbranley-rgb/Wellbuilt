@@ -875,6 +875,31 @@
   }
   .landing-footer b { color: var(--paper); font-weight: 500; }
 
+/* ── FIELD MODE TABS ── */
+.fm-tab-strip {
+  display: flex; gap: 0; background: #111827;
+  border-bottom: 1px solid rgba(255,255,255,0.07);
+  position: sticky; top: 56px; z-index: 40;
+}
+.fm-tab-btn {
+  flex: 1; padding: 11px 6px; border: none; background: transparent;
+  color: #94a3b8; font-size: 13px; font-weight: 600; cursor: pointer;
+  border-bottom: 2px solid transparent; transition: all 0.15s;
+  display: flex; align-items: center; justify-content: center; gap: 5px;
+}
+.fm-tab-btn.active { color: #f97316; border-bottom-color: #f97316; }
+.fm-tab-btn:hover:not(.active) { color: #e2e8f0; }
+.fm-badge {
+  background: #f97316; color: #fff; border-radius: 9px;
+  font-size: 10px; font-weight: 800; padding: 1px 6px; min-width: 18px;
+  text-align: center;
+}
+.field-empty {
+  text-align: center; color: #64748b; font-size: 14px;
+  padding: 36px 20px; border: 1px dashed rgba(255,255,255,0.1);
+  border-radius: 10px; margin: 8px 0;
+}
+
 /* ── FIELD MODE ── */
 .field-shell {
   min-height: 100dvh;
@@ -1594,24 +1619,52 @@ function buildEstimate(project, takeoff) {
       });
     });
 
-    // If BOTH materials and labor summed to zero, the AI returned unusable data
-    // Fall back to the tier-based rate anchors using confirmed sqft
-    // Priority: takeoff.sqft_confirmed > project.sqft > takeoff.sqft (any field AI returned)
+    // Northeast 2026 true all-in $/SF rates (including OH&P, permits, everything)
+    const NE_RATES = {
+      budget:  { allIn: 270, m: 0.38, l: 0.32 },
+      mid:     { allIn: 345, m: 0.40, l: 0.31 },
+      premium: { allIn: 460, m: 0.42, l: 0.30 }
+    };
+    const STATE_MULT = {NY:1.08,NJ:1.00,CT:0.97,MA:1.04,PA:0.90,RI:0.95,DE:0.88,ME:0.85,NH:0.87,VT:0.85};
+    const nr = NE_RATES[project.tier] || NE_RATES.mid;
+    const sm = STATE_MULT[project.state] || 1.00;
+
+    // Priority: takeoff.sqft_confirmed > project.sqft > takeoff.sqft
     const confirmedSqft = normNum(takeoff.sqft_confirmed) || normNum(takeoff.sqft) || project.sqft || 0;
-    if (materials + labor < 1000 && confirmedSqft > 0) {
-      const td = { budget: { m: 0.40, l: 0.35, all: 237 }, mid: { m: 0.42, l: 0.34, all: 300 }, premium: { m: 0.44, l: 0.33, all: 385 } };
-      const d = td[project.tier] || td.mid;
-      const targetGrand = confirmedSqft * d.all;
-      materials = Math.round(targetGrand * d.m);
-      labor     = Math.round(targetGrand * d.l);
-      // Replace zero line items with tier-based roll-ups so display is honest
+
+    // If AI line items summed to less than 20% of the expected all-in total, fall back
+    const expectedGrand = confirmedSqft * nr.allIn * sm;
+    const aiTotal = materials + labor;
+    if (aiTotal < expectedGrand * 0.20 && confirmedSqft > 0) {
+      // Compute realistic breakdown from confirmed sqft × all-in rate
+      const trueGrand = Math.round(expectedGrand);
+      const trueMat   = Math.round(trueGrand * nr.m);
+      const trueLab   = Math.round(trueGrand * nr.l);
+      const trueSubs  = Math.round(trueGrand * 0.08);
+      const trueMisc  = Math.round(trueGrand * 0.04);
+      const trueOhp   = Math.round(trueGrand * 0.06);
+      const truePermit= Math.round(trueGrand * stateInfo(project.state).permitPct);
       lineItems.length = 0;
-      lineItems.push({ category: 'Materials', name: 'Materials — ' + tier.name + ' tier finish package', qty: confirmedSqft, unit: 'SF', unitPrice: Math.round(d.all * d.m), total: materials });
-      lineItems.push({ category: 'Labor',     name: 'Labor — all trades (' + tier.name + ' tier)', qty: confirmedSqft, unit: 'SF', unitPrice: Math.round(d.all * d.l), total: labor });
-      console.warn('[buildEstimate] AI line items zeroed — fell back to tier rates for', confirmedSqft, 'SF', project.tier);
+      lineItems.push({ category: 'Materials', name: 'Materials — ' + tier.name + ' tier finish package', qty: confirmedSqft, unit: 'SF', unitPrice: Math.round(nr.allIn * sm * nr.m), total: trueMat });
+      lineItems.push({ category: 'Labor',     name: 'Labor — all trades (' + tier.name + ' tier)',      qty: confirmedSqft, unit: 'SF', unitPrice: Math.round(nr.allIn * sm * nr.l), total: trueLab });
+      lineItems.push({ category: 'Subcontractors', name: 'Specialty subs + equipment',                   qty: 1, unit: 'lot', unitPrice: trueSubs,   total: trueSubs });
+      lineItems.push({ category: 'Other',     name: 'Disposal, permits, cleanup',                        qty: 1, unit: 'lot', unitPrice: trueMisc,  total: trueMisc });
+      console.warn('[buildEstimate] AI zeroed — fallback to', confirmedSqft, 'SF × $' + Math.round(nr.allIn*sm) + '/SF =', trueGrand.toLocaleString());
+      return {
+        sqft: confirmedSqft, tier: project.tier, rate: nr.allIn, state: project.state,
+        materials: trueMat, labor: trueLab, subs: trueSubs, misc: trueMisc,
+        ohp: trueOhp, permits: truePermit,
+        subtotal: trueMat + trueLab + trueSubs + trueMisc,
+        grandTotal: trueGrand,
+        lineItems,
+        generatedAt: new Date().toISOString(),
+        scopeNarrative: generateScopeNarrative(project),
+        source: 'tier-fallback',
+      };
     }
 
-    const subs = Math.round((materials + labor) * 0.06);
+    // AI returned real numbers — add subs/misc/OH&P/permits on top
+    const subs = Math.round((materials + labor) * 0.08);
     const misc = Math.round((materials + labor) * 0.04);
     lineItems.push({ category: 'Subcontractors', name: 'Specialty trades buffer', qty: 1, unit: 'lot', unitPrice: subs, total: subs });
     lineItems.push({ category: 'Other', name: 'Disposal, equipment rental, cleanup', qty: 1, unit: 'lot', unitPrice: misc, total: misc });
@@ -2482,14 +2535,19 @@ async function _handleApi(ep, opts) {
     var files=gfs('files'), scope=gf('scope'), pt=gf('project_type'), sq=gf('sqft'), tier=gf('tier'), st=gf('state');
     var sqNum = parseInt(sq) || 0;
 
-    // ── Tier rate anchors (Northeast 2025/2026) ──
+    // ── Tier rate anchors (Northeast 2026 all-in including OH&P + permits) ──
+    // These are TRUE all-in $/SF rates the owner pays. OH&P is already baked in.
+    // budget: $265-280 all-in | mid: $330-355 all-in | premium: $440-480 all-in
     var tierData = {
-      budget:  { allIn: 237, matPct: 0.40, labPct: 0.35, desc: 'stock cabinets, builder fixtures, LVP floors' },
-      mid:     { allIn: 300, matPct: 0.42, labPct: 0.34, desc: 'semi-custom cabinets, quartz counters, tile' },
-      premium: { allIn: 385, matPct: 0.44, labPct: 0.33, desc: 'custom millwork, stone, high-end fixtures throughout' }
+      budget:  { allIn: 270, matPct: 0.38, labPct: 0.32, desc: 'stock cabinets, builder fixtures, LVP floors' },
+      mid:     { allIn: 345, matPct: 0.40, labPct: 0.31, desc: 'semi-custom cabinets, quartz counters, tile' },
+      premium: { allIn: 460, matPct: 0.42, labPct: 0.30, desc: 'custom millwork, slab stone, high-end fixtures throughout' }
     };
     var td = tierData[tier] || tierData.mid;
-    var targetGrand = Math.round(sqNum * td.allIn);
+    // targetGrand = the TRUE final number including all OH&P, permits, everything
+    var stateMultiplier = {NY:1.08,NJ:1.00,CT:0.97,MA:1.04,PA:0.90,RI:0.95,DE:0.88,ME:0.85,NH:0.87,VT:0.85}[st] || 1.00;
+    var targetGrand = Math.round(sqNum * td.allIn * stateMultiplier);
+    // Materials + labor = 82-88% of all-in (rest is subs/misc/OH&P/permits)
     var targetMat   = Math.round(targetGrand * td.matPct);
     var targetLab   = Math.round(targetGrand * td.labPct);
 
@@ -2519,10 +2577,11 @@ async function _handleApi(ep, opts) {
     var sysPrompt = [
       'You are a senior licensed GC estimator for the Northeast US with 20 years experience.',
       'CONFIRMED PROJECT: ' + pt + ', ' + sqNum + ' SF CONFIRMED from plans, ' + tier + ' tier, ' + st + '.',
-      'MANDATORY FINANCIAL TARGETS — your output MUST hit these:',
-      '  Total materials: ~$' + targetMat.toLocaleString(),
-      '  Total labor: ~$' + targetLab.toLocaleString(),
-      '  Grand total (before OH&P): ~$' + targetGrand.toLocaleString(),
+      'MANDATORY FINANCIAL TARGETS — your output MUST hit these numbers exactly:',
+      '  Total materials line items sum: ~$' + targetMat.toLocaleString(),
+      '  Total labor line items sum: ~$' + targetLab.toLocaleString(),
+      '  ALL line items combined (materials + labor): ~$' + targetGrand.toLocaleString(),
+      '  This $' + targetGrand.toLocaleString() + ' is the FINAL all-in number. Do NOT add OH&P on top — it is already included.',
       'LABOR HOUR GUIDE (use these as your starting quantities):',
       '  ' + laborGuide,
       'MATERIAL QUANTITY GUIDE (calculated from ' + sqNum + ' SF):',
@@ -4137,8 +4196,10 @@ function renderFieldMode() {
     gps: null,
     gpsLabel: '',
     submitted: false,
+    tab: 'log',  // log | punch | rfi
   };
   window.__fieldState = fieldState;
+  if (!fieldState.tab) fieldState.tab = 'log';
 
   const selectedJob = state.projects.find(p => p.id === fieldState.jobId);
 
@@ -4182,6 +4243,117 @@ function renderFieldMode() {
         </div>`).join('')}
     </div>` : '';
 
+  // Punch list for selected job
+  const punch = (selectedJob && selectedJob.punchList) ? selectedJob.punchList : [];
+  const openPunch = punch.filter(i => !i.done).length;
+  const rfis = (selectedJob && selectedJob.rfis) ? selectedJob.rfis : [];
+  const openRfis = rfis.filter(r => r.status === 'open').length;
+
+  const tabBtn = (key, label, badge) => `
+    <button class="fm-tab-btn ${fieldState.tab===key?'active':''}" data-field-tab="${key}">
+      ${label}${badge > 0 ? ` <span class="fm-badge">${badge}</span>` : ''}
+    </button>`;
+
+  const renderLogTab = () => `
+    <!-- Job selector -->
+    <div class="field-job-picker">
+      <div class="field-section-label">Select Job</div>
+      <select class="field-select" id="field-job-select">
+        <option value="">— Choose active job —</option>
+        ${activeJobs.map(j => `<option value="${j.id}" ${j.id === fieldState.jobId ? 'selected' : ''}>${j.name} · ${j.client || ''}</option>`).join('')}
+        ${activeJobs.length === 0 ? '<option disabled>No active jobs yet</option>' : ''}
+      </select>
+      ${selectedJob && fieldState.gps ? `<div style="font-size:0.72rem;color:#22c55e;margin-top:6px;">📍 ${fieldState.gpsLabel}</div>` : ''}
+    </div>
+    <!-- Camera -->
+    <div>
+      <div class="field-section-label" style="margin-bottom:6px;">Field Photos</div>
+      <div class="field-camera-zone" id="camera-drop-zone">
+        <div class="field-camera-icon">📸</div>
+        <div class="field-camera-label"><strong>Tap to take photo or upload</strong>Opens camera on mobile · supports multiple</div>
+        <input type="file" id="field-photo-input" accept="image/*" multiple capture="environment" style="position:absolute;inset:0;opacity:0;cursor:pointer;" />
+      </div>
+      ${photoThumbs}
+    </div>
+    <!-- Daily log -->
+    <div class="field-log-zone">
+      <div class="field-section-label">Daily Field Log</div>
+      <textarea class="field-log-textarea" id="field-log-text"
+        placeholder="Trades on site, work completed, issues, materials delivered...">${fieldState.logText}</textarea>
+      <button class="field-voice-btn" id="voice-btn">🎙️ <span id="voice-btn-label">Dictate log (voice)</span></button>
+    </div>
+    <!-- Submit -->
+    <button class="field-submit-btn" id="field-submit-btn" ${!fieldState.jobId ? 'disabled' : ''}>
+      ${!fieldState.jobId ? 'Select a job to submit' : '✓ Submit Log' + (fieldState.photos.length > 0 ? ` + ${fieldState.photos.length} photo${fieldState.photos.length > 1 ? 's' : ''}` : '')}
+    </button>`;
+
+  const renderPunchTab = () => `
+    <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:12px;">
+      <div class="field-section-label" style="margin:0;">Punch List ${selectedJob ? '· ' + selectedJob.name : ''}</div>
+      <span style="font-size:12px;color:${openPunch>0?'#f97316':'#22c55e'};font-weight:600;">${openPunch} open</span>
+    </div>
+    ${!selectedJob ? '<div class="field-empty">Select a job above to see its punch list.</div>' : ''}
+    <!-- Add item -->
+    ${selectedJob ? `
+    <div style="display:flex;gap:8px;margin-bottom:14px;">
+      <input id="punch-new-input" type="text" placeholder="Describe punch item..." style="flex:1;background:var(--surface-2);border:1px solid var(--border);border-radius:8px;padding:10px 12px;color:var(--text);font-size:14px;outline:none;" />
+      <select id="punch-trade-sel" style="background:var(--surface-2);border:1px solid var(--border);border-radius:8px;padding:10px 8px;color:var(--text);font-size:13px;">
+        <option value="GC">GC</option><option value="Elec">Elec</option><option value="Plumb">Plumb</option>
+        <option value="HVAC">HVAC</option><option value="Tile">Tile</option><option value="Paint">Paint</option>
+        <option value="Mill">Mill</option><option value="Other">Other</option>
+      </select>
+      <button id="punch-add-btn" style="background:var(--orange);color:#fff;border:none;border-radius:8px;padding:10px 14px;font-weight:700;cursor:pointer;font-size:16px;">+</button>
+    </div>
+    <div id="punch-list-body">
+      ${punch.length === 0 ? '<div class="field-empty">No punch items yet. Add the first one above.</div>' : ''}
+      ${punch.map((item, idx) => `
+        <div style="display:flex;align-items:flex-start;gap:10px;padding:11px 0;border-bottom:1px solid var(--border);">
+          <button data-punch-toggle="${idx}" style="background:${item.done?'#22c55e':'transparent'};border:2px solid ${item.done?'#22c55e':'var(--border)'};border-radius:50%;width:24px;height:24px;flex-shrink:0;cursor:pointer;font-size:13px;display:flex;align-items:center;justify-content:center;">${item.done?'✓':''}</button>
+          <div style="flex:1;">
+            <div style="font-size:14px;font-weight:600;color:var(--text);${item.done?'text-decoration:line-through;color:var(--text-muted);':''}">${esc(item.text)}</div>
+            <div style="font-size:12px;color:var(--text-muted);margin-top:2px;">${item.trade} · Added ${item.date}</div>
+          </div>
+          <button data-punch-del="${idx}" style="background:transparent;border:none;color:var(--text-dim);cursor:pointer;font-size:18px;padding:0 4px;">×</button>
+        </div>`).join('')}
+    </div>` : ''}`;
+
+  const renderRfiTab = () => `
+    <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:12px;">
+      <div class="field-section-label" style="margin:0;">RFIs ${selectedJob ? '· ' + selectedJob.name : ''}</div>
+      <span style="font-size:12px;color:${openRfis>0?'#f97316':'#22c55e'};font-weight:600;">${openRfis} open</span>
+    </div>
+    ${!selectedJob ? '<div class="field-empty">Select a job above to view RFIs.</div>' : ''}
+    ${selectedJob ? `
+    <!-- New RFI -->
+    <div style="background:var(--surface-2);border:1px solid var(--border);border-radius:10px;padding:14px;margin-bottom:14px;">
+      <div style="font-size:12px;font-weight:700;text-transform:uppercase;letter-spacing:0.05em;color:var(--text-muted);margin-bottom:10px;">New RFI</div>
+      <input id="rfi-subject" type="text" placeholder="Subject / question" style="width:100%;background:var(--surface);border:1px solid var(--border);border-radius:8px;padding:9px 12px;color:var(--text);font-size:14px;margin-bottom:8px;box-sizing:border-box;outline:none;" />
+      <textarea id="rfi-body" placeholder="Full description of the issue or question..." style="width:100%;background:var(--surface);border:1px solid var(--border);border-radius:8px;padding:9px 12px;color:var(--text);font-size:14px;min-height:80px;resize:vertical;box-sizing:border-box;outline:none;"></textarea>
+      <div style="display:flex;gap:8px;margin-top:8px;">
+        <select id="rfi-trade-sel" style="flex:1;background:var(--surface);border:1px solid var(--border);border-radius:8px;padding:9px;color:var(--text);font-size:13px;">
+          <option value="GC">GC</option><option value="Architect">Architect</option><option value="Engineer">Engineer</option>
+          <option value="Electrical">Electrical</option><option value="Plumbing">Plumbing</option><option value="HVAC">HVAC</option>
+          <option value="Owner">Owner</option><option value="Other">Other</option>
+        </select>
+        <button id="rfi-submit-btn" style="background:var(--orange);color:#fff;border:none;border-radius:8px;padding:9px 18px;font-weight:700;cursor:pointer;">Submit RFI</button>
+      </div>
+    </div>
+    <!-- RFI list -->
+    ${rfis.length === 0 ? '<div class="field-empty">No RFIs yet.</div>' : ''}
+    ${rfis.map((r, idx) => `
+      <div style="border:1px solid var(--border);border-radius:10px;padding:13px;margin-bottom:10px;background:var(--surface-2);">
+        <div style="display:flex;justify-content:space-between;align-items:flex-start;gap:8px;">
+          <div style="font-size:14px;font-weight:700;color:var(--text);">#${rfis.length - idx} · ${esc(r.subject)}</div>
+          <span style="font-size:11px;font-weight:700;padding:3px 8px;border-radius:6px;background:${r.status==='open'?'rgba(249,115,22,0.15)':'rgba(34,197,94,0.15)'};color:${r.status==='open'?'#f97316':'#22c55e'};flex-shrink:0;">${r.status.toUpperCase()}</span>
+        </div>
+        <div style="font-size:13px;color:var(--text-muted);margin-top:6px;">${esc(r.body)}</div>
+        <div style="display:flex;justify-content:space-between;align-items:center;margin-top:10px;">
+          <div style="font-size:11.5px;color:var(--text-dim);">${r.trade} · ${r.date}</div>
+          ${r.status==='open' ? `<button data-rfi-close="${idx}" style="background:transparent;border:1px solid var(--border);border-radius:6px;padding:4px 10px;font-size:12px;cursor:pointer;color:var(--text-muted);">Mark Resolved</button>` : ''}
+        </div>
+      </div>`).join('')}
+    ` : ''}`;
+
   return `
     <div class="field-shell">
       <div class="field-topbar">
@@ -4190,52 +4362,17 @@ function renderFieldMode() {
           📍 ${fieldState.gps ? fieldState.gpsLabel || 'Located' : 'Get GPS'}
         </button>
       </div>
+      <!-- Field inner tab strip -->
+      <div class="fm-tab-strip">
+        ${tabBtn('log', '📋 Daily Log', 0)}
+        ${tabBtn('punch', '🔧 Punch List', openPunch)}
+        ${tabBtn('rfi', '❓ RFIs', openRfis)}
+      </div>
       <div class="field-body">
         ${installBanner}
-
-        <!-- Job selector -->
-        <div class="field-job-picker">
-          <div class="field-section-label">Select Job</div>
-          <select class="field-select" id="field-job-select">
-            <option value="">— Choose active job —</option>
-            ${activeJobs.map(j => `<option value="${j.id}" ${j.id === fieldState.jobId ? 'selected' : ''}>${j.name} · ${j.client || ''}</option>`).join('')}
-            ${activeJobs.length === 0 ? '<option disabled>No active jobs yet</option>' : ''}
-          </select>
-          ${selectedJob && fieldState.gps ? `<div style="font-size:0.72rem;color:#22c55e;margin-top:6px;">📍 ${fieldState.gpsLabel}</div>` : ''}
-        </div>
-
-        <!-- Camera / photo upload -->
-        <div>
-          <div class="field-section-label" style="margin-bottom:6px;">Field Photos</div>
-          <div class="field-camera-zone" id="camera-drop-zone">
-            <div class="field-camera-icon">📸</div>
-            <div class="field-camera-label">
-              <strong>Tap to take a photo or upload</strong>
-              Opens camera on mobile · supports multiple
-            </div>
-            <input type="file" id="field-photo-input" accept="image/*" multiple capture="environment"
-              style="position:absolute;inset:0;opacity:0;cursor:pointer;" />
-          </div>
-          ${photoThumbs}
-        </div>
-
-        <!-- Daily log -->
-        <div class="field-log-zone">
-          <div class="field-section-label">Daily Field Log</div>
-          <textarea class="field-log-textarea" id="field-log-text"
-            placeholder="What happened on site today? Trades on site, work completed, issues, materials delivered..."
-          >${fieldState.logText}</textarea>
-          <button class="field-voice-btn" id="voice-btn">
-            🎙️ <span id="voice-btn-label">Dictate log (voice)</span>
-          </button>
-        </div>
-
-        <!-- Submit -->
-        <button class="field-submit-btn" id="field-submit-btn"
-          ${!fieldState.jobId ? 'disabled' : ''}>
-          ${!fieldState.jobId ? 'Select a job to submit' : '✓ Submit Log' + (fieldState.photos.length > 0 ? ` + ${fieldState.photos.length} photo${fieldState.photos.length > 1 ? 's' : ''}` : '')}
-        </button>
-
+        ${fieldState.tab === 'log'   ? renderLogTab()   : ''}
+        ${fieldState.tab === 'punch' ? renderPunchTab() : ''}
+        ${fieldState.tab === 'rfi'   ? renderRfiTab()   : ''}
       </div>
     </div>`;
 }
@@ -4415,6 +4552,79 @@ function bindFieldModeEvents() {
       window.__deferredInstall.userChoice.then(() => { window.__deferredInstall = null; render(); });
     });
   }
+
+  // Field inner tab strip
+  document.querySelectorAll('[data-field-tab]').forEach(btn => {
+    btn.addEventListener('click', e => {
+      window.__fieldState.tab = e.currentTarget.dataset.fieldTab;
+      render();
+    });
+  });
+
+  // Punch list — add
+  document.getElementById('punch-add-btn')?.addEventListener('click', () => {
+    const inp = document.getElementById('punch-new-input');
+    const trade = document.getElementById('punch-trade-sel')?.value || 'GC';
+    const text = inp?.value?.trim();
+    if (!text) return;
+    const proj = state.projects.find(p => p.id === window.__fieldState.jobId);
+    if (!proj) return;
+    if (!proj.punchList) proj.punchList = [];
+    proj.punchList.unshift({ id: 'p-'+Date.now(), text, trade, done: false, date: new Date().toLocaleDateString('en-US',{month:'short',day:'numeric'}) });
+    saveState(); render();
+  });
+  document.getElementById('punch-new-input')?.addEventListener('keydown', e => {
+    if (e.key === 'Enter') document.getElementById('punch-add-btn')?.click();
+  });
+
+  // Punch list — toggle done
+  document.querySelectorAll('[data-punch-toggle]').forEach(btn => {
+    btn.addEventListener('click', e => {
+      const idx = parseInt(e.currentTarget.dataset.punchToggle);
+      const proj = state.projects.find(p => p.id === window.__fieldState.jobId);
+      if (!proj || !proj.punchList) return;
+      proj.punchList[idx].done = !proj.punchList[idx].done;
+      saveState(); render();
+    });
+  });
+
+  // Punch list — delete
+  document.querySelectorAll('[data-punch-del]').forEach(btn => {
+    btn.addEventListener('click', e => {
+      const idx = parseInt(e.currentTarget.dataset.punchDel);
+      const proj = state.projects.find(p => p.id === window.__fieldState.jobId);
+      if (!proj || !proj.punchList) return;
+      proj.punchList.splice(idx, 1);
+      saveState(); render();
+    });
+  });
+
+  // RFI — submit
+  document.getElementById('rfi-submit-btn')?.addEventListener('click', () => {
+    const subject = document.getElementById('rfi-subject')?.value?.trim();
+    const body = document.getElementById('rfi-body')?.value?.trim();
+    const trade = document.getElementById('rfi-trade-sel')?.value || 'GC';
+    if (!subject) { document.getElementById('rfi-subject')?.focus(); return; }
+    const proj = state.projects.find(p => p.id === window.__fieldState.jobId);
+    if (!proj) return;
+    if (!proj.rfis) proj.rfis = [];
+    proj.rfis.unshift({
+      id: 'rfi-'+Date.now(), subject, body: body || '', trade, status: 'open',
+      date: new Date().toLocaleDateString('en-US',{month:'short',day:'numeric',year:'numeric'})
+    });
+    saveState(); render();
+  });
+
+  // RFI — mark resolved
+  document.querySelectorAll('[data-rfi-close]').forEach(btn => {
+    btn.addEventListener('click', e => {
+      const idx = parseInt(e.currentTarget.dataset.rfiClose);
+      const proj = state.projects.find(p => p.id === window.__fieldState.jobId);
+      if (!proj || !proj.rfis) return;
+      proj.rfis[idx].status = 'resolved';
+      saveState(); render();
+    });
+  });
 }
 
 // ---------- TIME CLOCK ----------
