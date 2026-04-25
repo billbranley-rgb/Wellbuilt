@@ -4692,22 +4692,34 @@ function bindFieldModeEvents() {
           if (data.secure_url) {
             fs.photos[idx].cloudUrl = data.secure_url;
             fs.photos[idx].uploading = false;
-            // Fetch back as blob then convert to data: URL for display (bypasses pplx url() stripping)
-            fetch(data.secure_url)
-              .then(r => r.blob())
-              .then(blob => new Promise((res, rej) => { const rd = new FileReader(); rd.onload = () => res(rd.result); rd.onerror = rej; rd.readAsDataURL(blob); }))
-              .then(dataUrl => {
+            // Draw Cloudinary image to canvas via crossOrigin to get data: URL
+            const tempImg = new Image();
+            tempImg.crossOrigin = 'anonymous';
+            tempImg.onload = () => {
+              try {
+                const cv = document.createElement('canvas');
+                cv.width = tempImg.naturalWidth; cv.height = tempImg.naturalHeight;
+                cv.getContext('2d').drawImage(tempImg, 0, 0);
+                const dataUrl = cv.toDataURL('image/jpeg', 0.82);
                 fs.photos[idx].dataUrl = dataUrl;
                 placeholder.style.cssText = 'width:80px;height:80px;border-radius:8px;background:#1e293b center/cover no-repeat;border:none;';
                 placeholder.style.backgroundImage = 'url(' + dataUrl + ')';
                 placeholder.textContent = '';
-              })
-              .catch(() => {
-                // If fetch-back fails, store cloud URL and show check mark
+              } catch(e) {
+                // Canvas tainted fallback — just show checkmark, photo is saved to Cloudinary
                 fs.photos[idx].dataUrl = data.secure_url;
                 placeholder.textContent = '✅';
-                placeholder.style.background = '#1e293b';
-              });
+                placeholder.title = 'Photo saved — ' + data.secure_url;
+              }
+            };
+            tempImg.onerror = () => {
+              fs.photos[idx].dataUrl = data.secure_url;
+              placeholder.textContent = '✅';
+              placeholder.title = 'Photo saved — ' + data.secure_url;
+            };
+            // Use Cloudinary's fl_attachment flag to allow cross-origin canvas
+            tempImg.src = data.secure_url.replace('/upload/', '/upload/fl_attachment/');
+            setTimeout(() => { if (!fs.photos[idx].dataUrl) tempImg.src = data.secure_url; }, 200);
           } else {
             placeholder.textContent = '❌';
             showToast('Upload failed — check Cloudinary preset');
