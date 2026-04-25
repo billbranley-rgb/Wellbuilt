@@ -4632,11 +4632,18 @@ function bindFieldModeEvents() {
     }, ()=>alert('Could not get location'));
   });
 
-  // Photo input
+  // Photo input — buffer ALL reads before re-rendering to avoid mid-read DOM wipe
   ov.querySelector('#field-photo-input')?.addEventListener('change', e => {
-    Array.from(e.target.files||[]).forEach(file => {
+    const files = Array.from(e.target.files||[]);
+    if (!files.length) return;
+    let done = 0;
+    files.forEach(file => {
       const reader = new FileReader();
-      reader.onload = ev => { fs.photos.push({ dataUrl: ev.target.result, name: file.name }); renderFieldMode(); bindFieldModeEvents(); };
+      reader.onload = ev => {
+        fs.photos.push({ dataUrl: ev.target.result, name: file.name });
+        done++;
+        if (done === files.length) { renderFieldMode(); bindFieldModeEvents(); }
+      };
       reader.readAsDataURL(file);
     });
   });
