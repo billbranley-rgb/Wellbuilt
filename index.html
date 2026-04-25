@@ -4656,32 +4656,51 @@ function bindFieldModeEvents() {
     ov.querySelector('#field-photo-input')?.click();
   });
 
-  // Photo input — iPhone Safari compatible: blob URL for display, canvas for storage
+  // Photo input — upload to Cloudinary, get real https:// URL (works on all iPhones)
   ov.querySelector('#field-photo-input')?.addEventListener('change', e => {
     const files = Array.from(e.target.files||[]);
     if (!files.length) return;
     const row = ov.querySelector('#field-thumbs-row');
+    const CLOUD = 'djfgcrbks';
+    const PRESET = 'ml_default';
     Array.from(files).forEach(file => {
       const idx = fs.photos.length;
-      const blobUrl = URL.createObjectURL(file);
-      fs.photos.push({ dataUrl: '', blobUrl: blobUrl, name: file.name });
-      // Build img with blob URL - works on iPhone Safari
+      fs.photos.push({ dataUrl: '', name: file.name, uploading: true });
+      // Show spinner placeholder
       const wrap = document.createElement('div');
       wrap.style.cssText = 'position:relative;width:80px;height:80px;flex-shrink:0;';
+      const placeholder = document.createElement('div');
+      placeholder.style.cssText = 'width:80px;height:80px;border-radius:8px;background:#1e293b;border:1px solid rgba(249,115,22,0.4);display:flex;align-items:center;justify-content:center;font-size:22px;';
+      placeholder.textContent = '⏳';
       const img = document.createElement('img');
-      img.style.cssText = 'width:80px;height:80px;object-fit:cover;border-radius:8px;display:block;';
-      img.src = blobUrl;
+      img.style.cssText = 'width:80px;height:80px;object-fit:cover;border-radius:8px;display:none;';
       const rmBtn = document.createElement('button');
       rmBtn.style.cssText = 'position:absolute;top:-6px;right:-6px;background:#ef4444;color:#fff;border:none;border-radius:50%;width:20px;height:20px;font-size:11px;cursor:pointer;line-height:1;';
       rmBtn.textContent = '×';
-      rmBtn.addEventListener('click', () => { fs.photos.splice(idx,1); URL.revokeObjectURL(blobUrl); wrap.remove(); });
+      rmBtn.addEventListener('click', () => { fs.photos.splice(idx,1); wrap.remove(); });
+      wrap.appendChild(placeholder);
       wrap.appendChild(img);
       wrap.appendChild(rmBtn);
       if (row) row.appendChild(wrap);
-      // Convert to base64 in background for persistent storage
-      const reader = new FileReader();
-      reader.onload = ev => { fs.photos[idx].dataUrl = ev.target.result; };
-      reader.readAsDataURL(file);
+      // Upload to Cloudinary
+      const fd = new FormData();
+      fd.append('file', file);
+      fd.append('upload_preset', PRESET);
+      fetch('https://api.cloudinary.com/v1_1/' + CLOUD + '/image/upload', { method: 'POST', body: fd })
+        .then(r => r.json())
+        .then(data => {
+          if (data.secure_url) {
+            fs.photos[idx].dataUrl = data.secure_url;
+            fs.photos[idx].uploading = false;
+            img.src = data.secure_url;
+            img.style.display = 'block';
+            placeholder.style.display = 'none';
+          } else {
+            placeholder.textContent = '❌';
+            showToast('Upload failed — check Cloudinary preset');
+          }
+        })
+        .catch(() => { placeholder.textContent = '❌'; showToast('Photo upload failed — check connection'); });
     });
     e.target.value = '';
   });
