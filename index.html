@@ -4643,17 +4643,38 @@ function bindFieldModeEvents() {
     });
   }
 
-  // Photo input — use blob URLs (works in sandboxed iframes, no canvas taint issues)
+  // Photo input — inject thumbs directly into DOM, no re-render (avoids blob URL invalidation)
   ov.querySelector('#field-photo-input')?.addEventListener('change', e => {
     const files = Array.from(e.target.files||[]);
     if (!files.length) return;
+    // Find or create the thumbs row
+    let row = ov.querySelector('#field-thumbs-row');
+    if (!row) {
+      row = document.createElement('div');
+      row.id = 'field-thumbs-row';
+      row.style.cssText = 'display:flex;gap:8px;flex-wrap:wrap;margin-bottom:14px;';
+      const label = ov.querySelector('label[style*="dashed"]');
+      if (label && label.parentNode) label.parentNode.insertBefore(row, label.nextSibling);
+    }
     files.forEach(file => {
-      // Revoke old blob URLs to avoid memory leaks then create fresh one
       const blobUrl = URL.createObjectURL(file);
+      const idx = fs.photos.length;
       fs.photos.push({ dataUrl: blobUrl, name: file.name, isBlob: true });
+      // Build thumb directly in DOM
+      const wrap = document.createElement('div');
+      wrap.style.cssText = 'position:relative;';
+      const thumb = document.createElement('div');
+      thumb.style.cssText = 'width:80px;height:80px;border-radius:8px;border:1px solid rgba(255,255,255,0.1);background:#1e293b center/cover no-repeat;';
+      thumb.style.backgroundImage = 'url(' + blobUrl + ')';
+      const rmBtn = document.createElement('button');
+      rmBtn.dataset.removePhoto = idx;
+      rmBtn.style.cssText = 'position:absolute;top:-6px;right:-6px;background:#ef4444;color:#fff;border:none;border-radius:50%;width:20px;height:20px;font-size:12px;cursor:pointer;';
+      rmBtn.textContent = '×';
+      rmBtn.addEventListener('click', () => { fs.photos.splice(idx, 1); wrap.remove(); });
+      wrap.appendChild(thumb);
+      wrap.appendChild(rmBtn);
+      row.appendChild(wrap);
     });
-    renderFieldMode();
-    bindFieldModeEvents();
   });
 
   // Remove photo
