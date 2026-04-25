@@ -1552,68 +1552,80 @@ function buildEstimate(project, takeoff) {
 
   // If we have an AI takeoff, use its real quantities as the source of truth
   if (takeoff && takeoff.materials && takeoff.labor) {
-    // Normalize: AI may return strings instead of numbers — coerce everything
-    const normNum = v => { const n = Number(String(v).replace(/[$,]/g,'')); return isFinite(n) ? n : 0; };
+    // Robust number coercion — handles strings, "$1,234", expressions, nulls
+    const normNum = v => {
+      if (v == null) return 0;
+      const s = String(v).replace(/[$,\s]/g, '');
+      const n = Number(s);
+      return isFinite(n) && n >= 0 ? n : 0;
+    };
 
-    // Sum materials — handle both totals.materials and summing line items
-    const rawMat = takeoff.totals?.materials ?? takeoff.totals?.material ?? null;
-    const materials = rawMat != null ? normNum(rawMat)
-      : takeoff.materials.reduce((s,m) => s + normNum(m.total), 0);
-
-    const rawLab = takeoff.totals?.labor ?? null;
-    const labor = rawLab != null ? normNum(rawLab)
-      : takeoff.labor.reduce((s,l) => s + normNum(l.total), 0);
-
-    // If AI gave us a grand total directly, use it as the anchor
-    const aiGrand = takeoff.totals?.grand ?? takeoff.totals?.grandTotal ?? null;
-
-    const subs = (materials + labor) * 0.06;
-    const misc = (materials + labor) * 0.04;
-    const base = materials + labor + subs + misc;
-    const ohpPct = 0.18;
-    const permitsPct = stateInfo(project.state).permitPct;
-    const ohpAmt = base * ohpPct;
-    const permitAmt = base * permitsPct;
-
-    // Convert takeoff materials + labor into line items
+    // Build line items — ALWAYS recompute total from qty × unitPrice
+    // Never trust the AI's pre-computed total field (it's often wrong/zero)
     const lineItems = [];
+    let materials = 0;
+    let labor = 0;
+
     takeoff.materials.forEach(m => {
-      const tot = normNum(m.total);
       const qty = normNum(m.qty) || 1;
-      // AI may return unitPrice or unit_cost
-      const up = normNum(m.unitPrice || m.unit_cost) || (tot / qty);
+      // unitPrice field: AI uses unitPrice, unit_cost, or price
+      const up  = normNum(m.unitPrice || m.unit_cost || m.price);
+      // Recompute total ourselves — if up is 0 fall back to AI total
+      const aiTot = normNum(m.total);
+      const tot = up > 0 ? Math.round(qty * up) : aiTot;
+      materials += tot;
       lineItems.push({
         category: 'Materials',
         name: `${m.category || 'Material'} — ${m.item || ''}`.trim(),
-        qty, unit: m.unit || 'ea', unitPrice: up, total: tot,
+        qty, unit: m.unit || 'ea', unitPrice: up || (tot / qty), total: tot,
       });
     });
+
     takeoff.labor.forEach(l => {
-      const tot = normNum(l.total);
-      const hrs = normNum(l.hours) || 1;
-      const rate = normNum(l.rate) || (tot / hrs);
+      const hrs  = normNum(l.hours) || 1;
+      const rate = normNum(l.rate);
+      const aiTot = normNum(l.total);
+      const tot  = rate > 0 ? Math.round(hrs * rate) : aiTot;
+      labor += tot;
       lineItems.push({
         category: 'Labor',
         name: `${l.trade || 'Labor'} — ${l.task || ''}`.trim(),
-        qty: hrs, unit: 'hrs', unitPrice: rate, total: tot,
+        qty: hrs, unit: 'hrs', unitPrice: rate || (tot / hrs), total: tot,
       });
     });
+
+    // If BOTH materials and labor summed to zero, the AI returned unusable data
+    // Fall back to the tier-based rate anchors using confirmed sqft
+    // Priority: takeoff.sqft_confirmed > project.sqft > takeoff.sqft (any field AI returned)
+    const confirmedSqft = normNum(takeoff.sqft_confirmed) || normNum(takeoff.sqft) || project.sqft || 0;
+    if (materials + labor < 1000 && confirmedSqft > 0) {
+      const td = { budget: { m: 0.40, l: 0.35, all: 237 }, mid: { m: 0.42, l: 0.34, all: 300 }, premium: { m: 0.44, l: 0.33, all: 385 } };
+      const d = td[project.tier] || td.mid;
+      const targetGrand = confirmedSqft * d.all;
+      materials = Math.round(targetGrand * d.m);
+      labor     = Math.round(targetGrand * d.l);
+      // Replace zero line items with tier-based roll-ups so display is honest
+      lineItems.length = 0;
+      lineItems.push({ category: 'Materials', name: 'Materials — ' + tier.name + ' tier finish package', qty: confirmedSqft, unit: 'SF', unitPrice: Math.round(d.all * d.m), total: materials });
+      lineItems.push({ category: 'Labor',     name: 'Labor — all trades (' + tier.name + ' tier)', qty: confirmedSqft, unit: 'SF', unitPrice: Math.round(d.all * d.l), total: labor });
+      console.warn('[buildEstimate] AI line items zeroed — fell back to tier rates for', confirmedSqft, 'SF', project.tier);
+    }
+
+    const subs = Math.round((materials + labor) * 0.06);
+    const misc = Math.round((materials + labor) * 0.04);
     lineItems.push({ category: 'Subcontractors', name: 'Specialty trades buffer', qty: 1, unit: 'lot', unitPrice: subs, total: subs });
     lineItems.push({ category: 'Other', name: 'Disposal, equipment rental, cleanup', qty: 1, unit: 'lot', unitPrice: misc, total: misc });
 
-    const subtotal = lineItems.reduce((s, l) => s + l.total, 0);
-    // If our summed subtotal is suspiciously zero but AI gave us a grand total, use it directly
-    let grandTotal = subtotal + ohpAmt + permitAmt;
-    if (grandTotal < 1000 && aiGrand && normNum(aiGrand) > 1000) {
-      grandTotal = normNum(aiGrand);
-    }
-
-    // Also update project sqft from takeoff if it was 0 or missing
-    // (never overwrite a user-entered value — only fill blanks)
-    // Note: sqft update is caller's responsibility per the zero-overwrite rule
+    const base = materials + labor + subs + misc;
+    const ohpPct = 0.18;
+    const permitsPct = stateInfo(project.state).permitPct;
+    const ohpAmt    = Math.round(base * ohpPct);
+    const permitAmt = Math.round(base * permitsPct);
+    const subtotal  = lineItems.reduce((s, l) => s + l.total, 0);
+    const grandTotal = subtotal + ohpAmt + permitAmt;
 
     return {
-      sqft: project.sqft,
+      sqft: project.sqft || confirmedSqft,
       tier: project.tier,
       rate: tier.rate,
       state: project.state,
@@ -2789,10 +2801,17 @@ function renderMeasureResult(m, onApply) {
 }
 
 function openTakeoffModal(ctx) {
+  const prevCtx = takeoffCtx;
   takeoffCtx = ctx;
-  takeoffFiles = [];
+  // Reset files only if switching to a different project (or first open)
+  if (prevCtx !== ctx) takeoffFiles = [];
   takeoffRunning = false;
   measureState = { running: false, result: null, error: null };
+  // Pre-load vault files immediately so files are ready before renderTakeoffModal
+  if (ctx && ctx !== 'wizard') {
+    const vf = getPlanFilesFromVault(ctx);
+    if (vf.length > 0) takeoffFiles = vf;
+  }
   renderTakeoffModal();
 }
 
@@ -3103,9 +3122,9 @@ async function runTakeoff() {
       const p = state.projects.find(x => x.id === takeoffCtx);
       if (p) {
         p.takeoff = data;
-        // Lock confirmed sqft into project (user-entered value is always ground truth)
+        // Lock confirmed sqft into project (user-entered value is ALWAYS ground truth — overwrite always)
         const toSqft = Number(document.getElementById('to-sqft')?.value || 0) || sqft;
-        if (toSqft > 0 && (!p.sqft || p.sqft === 0)) p.sqft = toSqft;
+        if (toSqft > 0) p.sqft = toSqft; // always trust user-entered sqft
         // Rebuild the stored estimate from the fresh takeoff so grandTotal is correct
         const est = buildEstimate(p, data);
         console.log('[ESTIMATE BUILT]', JSON.stringify({ grandTotal: est.grandTotal, subtotal: est.subtotal, materials: est.materials, labor: est.labor }));
