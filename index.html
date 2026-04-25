@@ -442,6 +442,31 @@
     }
     .mobile-nav-item.active { color: var(--orange); }
     .mobile-nav-item .ico { width: 20px; height: 20px; }
+    /* Field Mode — raised orange pill in center of mobile nav */
+    .mobile-nav-field {
+      position: relative;
+      color: #fff !important;
+    }
+    .mobile-nav-field .mobile-field-pill {
+      background: var(--orange);
+      border-radius: 50%;
+      width: 48px; height: 48px;
+      display: flex; align-items: center; justify-content: center;
+      margin-top: -20px;
+      box-shadow: 0 4px 16px rgba(249,115,22,0.55);
+      border: 3px solid var(--surface);
+    }
+    .mobile-nav-field .mobile-field-pill .ico { width: 22px; height: 22px; stroke: #fff; }
+    .mobile-nav-field span { color: var(--orange); font-weight: 800; font-size: 11px; }
+    /* Sidebar Field Mode — orange accent row */
+    .nav-item-field {
+      background: rgba(249,115,22,0.12) !important;
+      color: var(--orange) !important;
+      border: 1px solid rgba(249,115,22,0.25);
+      font-weight: 700;
+      margin: 4px 0;
+    }
+    .nav-item-field:hover { background: rgba(249,115,22,0.2) !important; }
     .page-head h2 { font-size: 22px; }
   }
 
@@ -2055,8 +2080,8 @@ function renderSidebar() {
       </div>
       <div class="nav-section">Workspace</div>
       ${items.map(i => `
-        <button class="nav-item ${currentView.name === i.key ? 'active' : ''}" data-nav="${i.key}">
-          ${ico(i.icon)}${i.label}
+        <button class="nav-item ${i.key === 'field' ? 'nav-item-field' : ''} ${currentView.name === i.key ? 'active' : ''}" data-nav="${i.key}">
+          ${ico(i.icon)}${i.key === 'field' ? '📸 ' + i.label : i.label}
         </button>
       `).join('')}
       <div class="sidebar-footer">
@@ -2097,19 +2122,23 @@ function renderTopbar() {
 
 function renderMobileNav() {
   const items = [
-    { key: 'home', label: 'Home', icon: 'home' },
-    { key: 'timeclock', label: 'Clock', icon: 'clock' },
-    { key: 'new', label: 'New', icon: 'plus' },
-    { key: 'projects', label: 'Projects', icon: 'folder' },
-    { key: 'settings', label: 'Settings', icon: 'settings' },
+    { key: 'home',      label: 'Home',     icon: 'home' },
+    { key: 'projects',  label: 'Projects', icon: 'folder' },
+    { key: 'field',     label: 'Field',    icon: 'camera', highlight: true },
+    { key: 'timeclock', label: 'Clock',    icon: 'clock' },
+    { key: 'new',       label: 'New Job',  icon: 'plus' },
   ];
   return `
     <nav class="mobile-nav">
-      ${items.map(i => `
+      ${items.map(i => i.highlight ? `
+        <button class="mobile-nav-item mobile-nav-field ${currentView.name === i.key ? 'active' : ''}" data-nav="${i.key}">
+          <div class="mobile-field-pill">${ico(i.icon)}</div>
+          <span>${i.label}</span>
+        </button>` : `
         <button class="mobile-nav-item ${currentView.name === i.key ? 'active' : ''}" data-nav="${i.key}">
           ${ico(i.icon)}<span>${i.label}</span>
-        </button>
-      `).join('')}
+        </button>`
+      ).join('')}
     </nav>
   `;
 }
