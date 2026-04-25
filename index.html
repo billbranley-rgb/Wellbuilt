@@ -1006,13 +1006,12 @@
 
 /* Full-screen field shell */
 .field-shell {
-  height: 100dvh;
+  min-height: calc(100dvh - 120px);
   background: #0a0f1e;
   color: #fff;
   font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
   display: flex; flex-direction: column;
   max-width: 540px; margin: 0 auto;
-  overflow: hidden;
   position: relative;
 }
 
@@ -1021,21 +1020,43 @@
   flex: 1;
   overflow-y: auto;
   -webkit-overflow-scrolling: touch;
-  padding-bottom: 8px;
+  padding-bottom: 16px;
 }
 
-/* Bottom nav bar — 5 field action buttons */
+/* Bottom nav bar — 5 big field action buttons */
 .fm-bottom-nav {
   display: flex;
-  background: #111827;
-  border-top: 1px solid rgba(255,255,255,0.1);
-  padding: 6px 0 max(6px, env(safe-area-inset-bottom));
+  background: #0d1525;
+  border-top: 2px solid rgba(249,115,22,0.3);
+  padding: 0 4px;
+  padding-bottom: max(8px, env(safe-area-inset-bottom));
   flex-shrink: 0;
   z-index: 50;
+  gap: 4px;
 }
 .fm-bottom-nav .fm-tab-btn {
-  font-size: 10px;
-  padding: 6px 2px;
+  flex: 1;
+  flex-direction: column;
+  padding: 12px 4px 8px;
+  font-size: 11px;
+  font-weight: 700;
+  border-radius: 10px;
+  min-height: 64px;
+  gap: 4px;
+  border-bottom: none;
+  border: 2px solid transparent;
+}
+.fm-bottom-nav .fm-tab-btn span:first-child {
+  font-size: 22px;
+  line-height: 1;
+}
+.fm-bottom-nav .fm-tab-btn.active {
+  background: rgba(249,115,22,0.15);
+  border-color: rgba(249,115,22,0.4);
+  color: #f97316;
+}
+.fm-bottom-nav .fm-tab-btn:not(.active) {
+  color: #94a3b8;
 }
 .field-topbar {
   background: #111827;
@@ -1914,10 +1935,10 @@ function render() {
       <div class="app">
         ${renderSidebar()}
         <div class="main">
-          ${isField ? '' : renderTopbar()}
+          ${renderTopbar()}
           <div class="content${isField ? ' content-field' : ''}">${renderPage()}</div>
         </div>
-        ${isField ? '' : renderMobileNav()}
+        ${renderMobileNav()}
       </div>
       ${state.modal ? renderModal() : ''}
       ${state.toast ? `<div class="toast">${state.toast}</div>` : ''}
