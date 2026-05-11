@@ -2021,6 +2021,20 @@ let landingForm = { name: '', email: '', company: '', shopSize: '', state: '', s
 
 function renderLanding() {
   return `
+<!-- INTRO VIDEO POPUP -->
+<div id="k1-video-popup" style="position:fixed;inset:0;z-index:9999;background:rgba(0,0,0,0.92);display:flex;align-items:center;justify-content:center;padding:1rem;">
+  <div style="position:relative;width:100%;max-width:960px;background:#000;border-radius:12px;overflow:hidden;box-shadow:0 30px 90px rgba(0,0,0,0.6);">
+    <button id="k1-video-close" aria-label="Close video" style="position:absolute;top:10px;right:10px;z-index:2;width:36px;height:36px;border-radius:50%;border:none;background:rgba(0,0,0,0.65);color:#fff;font-size:1.2rem;cursor:pointer;display:flex;align-items:center;justify-content:center;">×</button>
+    <video id="k1-video-player" playsinline controls preload="auto" style="display:block;width:100%;height:auto;background:#000;">
+      <source id="k1-video-source" src="assets/intro-1.mp4" type="video/mp4">
+    </video>
+    <div style="display:flex;justify-content:space-between;align-items:center;padding:8px 14px;background:#0F172A;color:#94A3B8;font-size:0.78rem;">
+      <span id="k1-video-label">Intro · 1 of 2</span>
+      <button id="k1-video-skip" style="background:transparent;color:#F97316;border:none;font-weight:700;cursor:pointer;font-size:0.8rem;">Skip ▸</button>
+    </div>
+  </div>
+</div>
+
 <div id="k1-landing" style="font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,sans-serif;background:#0F172A;color:#fff;min-height:100vh;overflow-x:hidden;">
 
 <!-- NAV -->
@@ -2285,6 +2299,44 @@ function bindLandingEvents() {
   document.getElementById('k1-launch-nav')?.addEventListener('click', launchApp);
   document.getElementById('k1-launch-hero')?.addEventListener('click', launchApp);
   document.getElementById('k1-launch-cta')?.addEventListener('click', launchApp);
+
+  // Intro video sequence: intro-1.mp4 then intro-2.mp4
+  const popup = document.getElementById('k1-video-popup');
+  const player = document.getElementById('k1-video-player');
+  const source = document.getElementById('k1-video-source');
+  const label = document.getElementById('k1-video-label');
+  if (!popup || !player || !source) return;
+
+  if (sessionStorage.getItem('k1IntroPlayed') === '1') {
+    popup.remove();
+    return;
+  }
+
+  const playlist = ['assets/intro-1.mp4', 'assets/intro-2.mp4'];
+  let idx = 0;
+
+  function closePopup() {
+    sessionStorage.setItem('k1IntroPlayed', '1');
+    try { player.pause(); } catch (e) {}
+    popup.remove();
+  }
+
+  function playIndex(i) {
+    if (i >= playlist.length) { closePopup(); return; }
+    idx = i;
+    source.src = playlist[i];
+    label.textContent = `Intro · ${i + 1} of ${playlist.length}`;
+    player.load();
+    const p = player.play();
+    if (p && p.catch) p.catch(() => { /* autoplay may be blocked; user can press play */ });
+  }
+
+  player.addEventListener('ended', () => playIndex(idx + 1));
+  document.getElementById('k1-video-close')?.addEventListener('click', closePopup);
+  document.getElementById('k1-video-skip')?.addEventListener('click', () => playIndex(idx + 1));
+  popup.addEventListener('click', (e) => { if (e.target === popup) closePopup(); });
+
+  playIndex(0);
 }
 
 function renderSidebar() {
