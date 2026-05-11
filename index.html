@@ -1702,7 +1702,7 @@ function saveState() {
   try { window.__KIQ_SAVED = JSON.stringify(state); } catch (e) {}
 }
 
-// Lightweight toast (no localStorage used)
+// Lightweight toast
 function showToast(msg) {
   let host = document.getElementById('kiq-toast-host');
   if (!host) {
@@ -2307,7 +2307,9 @@ function bindLandingEvents() {
   const label = document.getElementById('k1-video-label');
   if (!popup || !player || !source) return;
 
-  if (sessionStorage.getItem('k1IntroPlayed') === '1') {
+  // In-memory flag (page-lifetime only, no browser storage) prevents the
+  // popup from re-opening if renderLanding() runs again in the same page load.
+  if (window.__k1IntroPlayed) {
     popup.remove();
     return;
   }
@@ -2316,7 +2318,7 @@ function bindLandingEvents() {
   let idx = 0;
 
   function closePopup() {
-    sessionStorage.setItem('k1IntroPlayed', '1');
+    window.__k1IntroPlayed = true;
     try { player.pause(); } catch (e) {}
     popup.remove();
   }
